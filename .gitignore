@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local build artifacts
+build/
+dist/
+*.egg-info/
+
+# Pipeline outputs
+models/*.pkl
+data/processed/*.csv
+data/outputs/*.csv
+data/outputs/*.json
+reports/figures/*.png
+
+# Temporary pytest folders seen on Windows
+pytest-cache-files-*/
