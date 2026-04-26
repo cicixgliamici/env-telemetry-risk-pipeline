@@ -44,6 +44,7 @@ def test_validate_dataset_schema_rejects_single_class_target(valid_dataset_df):
 
 def test_validate_dataset_schema_rejects_non_numeric_values(valid_dataset_df):
     df = valid_dataset_df.copy()
+    df["humidity_pct"] = df["humidity_pct"].astype(object)
     df.loc[0, "humidity_pct"] = "not-a-number"
 
     with pytest.raises(DataValidationError, match="humidity_pct"):
