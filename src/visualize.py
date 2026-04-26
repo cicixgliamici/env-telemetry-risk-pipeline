@@ -1,7 +1,10 @@
 from pathlib import Path
 
-import matplotlib.pyplot as plt
+import matplotlib
 import pandas as pd
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 
 def plot_feature_importance(model, feature_names, output_path: str | Path) -> None:
