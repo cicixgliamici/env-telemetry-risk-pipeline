@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from src.feature_engineering import add_engineered_features
 
@@ -21,6 +22,13 @@ def test_feature_engineering_adds_expected_columns():
 
     assert "humidity_temp_index" in out.columns
     assert "vibration_exposure_index" in out.columns
+    assert out.loc[0, "humidity_temp_index"] == pytest.approx(24.0)
+    assert out.loc[0, "rain_humidity_score"] == pytest.approx(13.0)
+    assert out.loc[0, "environment_stress_score"] == pytest.approx(50.0)
+    assert out.loc[0, "pressure_deviation"] == pytest.approx(3.0)
+    assert out.loc[0, "high_humidity_flag"] == 0
+    assert out.loc[0, "high_salinity_flag"] == 0
+    assert out.loc[0, "thermal_stress_flag"] == 1
 
 
 def test_feature_engineering_preserves_row_count(valid_dataset_df):

@@ -23,6 +23,12 @@ def evaluate_classifier(model, X_test, y_test) -> dict:
         "f1_weighted": float(f1),
         "confusion_matrix": confusion_matrix(y_test, preds).tolist(),
         "classification_report": classification_report(y_test, preds, zero_division=0),
+        "classification_report_dict": classification_report(
+            y_test,
+            preds,
+            zero_division=0,
+            output_dict=True,
+        ),
     }
 
 

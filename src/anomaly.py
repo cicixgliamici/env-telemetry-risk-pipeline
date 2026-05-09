@@ -2,13 +2,19 @@ import joblib
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
-from src.config import FIGURES_DIR, MODELS_DIR, OUTPUT_DIR, PROCESSED_DIR, RANDOM_STATE, RAW_DATA_PATH
+from src.config import (
+    FIGURES_DIR,
+    MODELS_DIR,
+    OUTPUT_DIR,
+    PROCESSED_DIR,
+    RANDOM_STATE,
+    RAW_DATA_PATH,
+)
 from src.data_loader import load_csv
 from src.feature_engineering import add_engineered_features
 from src.preprocessing import clean_dataset
 from src.utils import ensure_dir, get_logger, save_json, utc_timestamp
 from src.visualize import plot_anomaly_scatter
-
 
 LOGGER = get_logger("src.anomaly")
 

@@ -39,7 +39,11 @@ def validate_dataset_schema(df: pd.DataFrame) -> pd.DataFrame:
             raise DataValidationError(f"Column '{column}' must be numeric.") from exc
 
     try:
-        normalized["timestamp"] = pd.to_datetime(normalized["timestamp"])
+        normalized["timestamp"] = pd.to_datetime(
+            normalized["timestamp"],
+            errors="raise",
+            format="mixed",
+        )
     except Exception as exc:
         raise DataValidationError("Column 'timestamp' must contain valid datetimes.") from exc
 

@@ -1,6 +1,8 @@
+build
 joblib
 matplotlib
 numpy
 pandas
 pytest
+ruff
 scikit-learn

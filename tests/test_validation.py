@@ -49,3 +49,11 @@ def test_validate_dataset_schema_rejects_non_numeric_values(valid_dataset_df):
 
     with pytest.raises(DataValidationError, match="humidity_pct"):
         validate_dataset_schema(df)
+
+
+def test_validate_dataset_schema_rejects_invalid_timestamps(valid_dataset_df):
+    df = valid_dataset_df.copy()
+    df.loc[0, "timestamp"] = "not-a-date"
+
+    with pytest.raises(DataValidationError, match="timestamp"):
+        validate_dataset_schema(df)

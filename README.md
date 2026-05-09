@@ -8,6 +8,8 @@ Small ML pipeline for environmental telemetry data with a clearer structure, dat
 - cleans and normalizes telemetry-style environmental data
 - creates engineered features for risk scoring
 - trains and compares baseline classifiers for `risk_level`
+- profiles data quality and target balance
+- runs batch predictions from a saved model
 - runs anomaly detection with `IsolationForest`
 - saves metrics, predictions, artifacts, and plots
 
@@ -22,6 +24,7 @@ Small ML pipeline for environmental telemetry data with a clearer structure, dat
 - `reports/figures/`: generated charts
 - `notebooks/`: exploratory notebooks
 - `scripts/`: lightweight helper entrypoints
+- `Dockerfile`: minimal runtime image for deployment smoke tests
 - `docs/`: architecture and operations notes
 
 ## Expected Dataset Columns
@@ -68,6 +71,37 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .venv\Scripts\Activate.ps1
 ```
 
+## Reviewer Quickstart
+
+The fastest way to verify the project is:
+
+```bash
+pip install -e .[dev]
+python -m src validate --input data/raw/raw_dataset.csv
+python -m pytest -q
+```
+
+For a fuller smoke run:
+
+```bash
+python scripts/generate_synthetic_data.py --output data/raw/synthetic_dataset.csv --rows 250 --seed 42
+python -m src validate --input data/raw/synthetic_dataset.csv
+python -m src profile --input data/raw/synthetic_dataset.csv
+python -m src train --input data/raw/raw_dataset.csv
+python -m src predict --input data/raw/raw_dataset.csv --model models/random_forest_model.pkl
+python -m src anomaly --input data/raw/raw_dataset.csv --contamination 0.05
+```
+
+Expected high-level behavior:
+
+- validation prints a JSON status with row and column counts
+- profiling writes data quality JSON and Markdown reports
+- training writes cleaned data, engineered data, metrics, predictions, plots, and a model file
+- batch prediction writes a CSV with predicted risk labels
+- anomaly detection writes row-level anomaly labels, a summary JSON, a plot, and a detector file
+- synthetic data generation creates a reproducible larger review dataset when the bundled sample is too small
+- generated runtime artifacts are ignored by git
+
 ## CLI Usage
 
 Validate the dataset:
@@ -82,6 +116,18 @@ Train the baseline model:
 python -m src train --input data/raw/raw_dataset.csv
 ```
 
+Create a data profile:
+
+```bash
+python -m src profile --input data/raw/raw_dataset.csv
+```
+
+Run batch prediction after training:
+
+```bash
+python -m src predict --input data/raw/raw_dataset.csv --model models/random_forest_model.pkl
+```
+
 Run anomaly detection:
 
 ```bash
@@ -94,10 +140,31 @@ Run the tests:
 python -m pytest
 ```
 
+Generate a reproducible synthetic dataset:
+
+```bash
+python scripts/generate_synthetic_data.py --output data/raw/synthetic_dataset.csv --rows 250 --seed 42
+```
+
+Build and smoke-test the runtime container:
+
+```bash
+docker build -t env-telemetry-risk-pipeline:local .
+docker run --rm env-telemetry-risk-pipeline:local
+```
+
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Operations](docs/OPERATIONS.md)
+- [Modeling Notes](docs/MODELING_NOTES.md): mathematical background, diagrams, metric definitions, leakage rationale, anomaly detection notes, and common reviewer questions
+- [Model Card](docs/MODEL_CARD.md): intended use, evaluation, limitations, and monitoring notes
+- [Dataset Card](docs/DATASET_CARD.md): schema, synthetic data, validation rules, and leakage notes
+- [Reviewer Checklist](docs/REVIEWER_CHECKLIST.md): commands and review signals to inspect
+
+## Review Notes
+
+This is intentionally a small, auditable baseline rather than a highly tuned model package. The code emphasizes explicit validation, reproducible defaults, simple model comparison, security-aware checks, deployment smoke tests, and clear generated artifacts. The included dataset is small, so model metrics should be read as pipeline smoke evidence rather than production-grade performance claims. Use the synthetic data generator when a larger deterministic dataset is useful for review.
 
 ## Generated Outputs
 
@@ -105,7 +172,11 @@ Training creates:
 
 - `data/outputs/metrics.json`
 - `data/outputs/model_comparison.json`
+- `data/outputs/model_metadata.json`
+- `data/outputs/data_profile.json`
+- `data/outputs/data_profile.md`
 - `data/outputs/predictions.csv`
+- `data/outputs/batch_predictions.csv`
 - `data/outputs/training_summary.md`
 - `models/<selected_model>_model.pkl`
 

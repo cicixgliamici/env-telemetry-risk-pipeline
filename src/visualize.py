@@ -1,4 +1,8 @@
+import os
+import tempfile
 from pathlib import Path
+
+os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "matplotlib"))
 
 import matplotlib
 import pandas as pd

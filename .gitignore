@@ -31,7 +31,12 @@ models/*.pkl
 data/processed/*.csv
 data/outputs/*.csv
 data/outputs/*.json
+data/outputs/*.md
+data/raw/synthetic_dataset.csv
 reports/figures/*.png
 
 # Temporary pytest folders seen on Windows
 pytest-cache-files-*/
+
+# Local planning notes
+LOCAL_ROADMAP.md
