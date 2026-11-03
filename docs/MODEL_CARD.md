@@ -9,7 +9,9 @@ The supervised training pipeline compares:
 - Logistic Regression
 - Random Forest Classifier
 
-The selected supervised model is chosen by weighted F1 score on the held-out test split. Cross-validation summaries are generated to give reviewers a more stable view than a single split alone.
+The selected supervised model is chosen by mean weighted F1 from stratified cross-validation on the training split only. The winner is then fitted on the full training split and evaluated once on the held-out test split. Test scores do not influence model selection.
+
+Cross-validation uses up to three folds, limited by the smallest training class. If any training class has fewer than two observations, training stops with a clear error rather than selecting a model using test scores. Ties keep the first declared candidate for reproducibility.
 
 ## Intended Use
 
@@ -67,7 +69,7 @@ The pipeline reports:
 - per-class classification report
 - compact stratified cross-validation summary
 
-Weighted F1 is used for model selection because it balances precision and recall while accounting for class support.
+Mean cross-validation weighted F1 is used for model selection because it combines precision and recall while accounting for class support. `model_comparison.json` and `candidate_models` in `metrics.json` contain training cross-validation statistics with explicit `_mean` and `_std` keys. Headline and per-class metrics in `metrics.json` describe only the selected model on the held-out test split. Metadata records the selection metric and the datasets used for selection and evaluation.
 
 ## Ethical And Safety Notes
 
@@ -90,6 +92,8 @@ The synthetic dataset is useful for testing and demonstrations, but it does not 
 - No production data drift monitor is active yet.
 - The model artifact is local and does not yet use a registry.
 - Cross-validation improves review confidence but does not replace representative data.
+- Numeric imputation still computes medians before the split; moving it into a fitted preprocessing pipeline is pending. Model selection and final evaluation are separated, but preprocessing is not yet isolated within each fold.
+- Random stratified splitting does not measure future-time generalization; chronological evaluation requires a separate design and enough historical data.
 
 ## Recommended Monitoring
 

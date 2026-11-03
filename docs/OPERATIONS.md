@@ -102,4 +102,4 @@ docker run --rm env-telemetry-risk-pipeline:local
 - Add environment-based configuration for paths and model settings.
 - Publish container images to a registry after protected-branch CI passes.
 - Persist logs to file for long-running or scheduled jobs.
-- Add cross-validation or hyperparameter search for stronger model selection.
+- Add hyperparameter search within training-only cross-validation for stronger model selection.

@@ -10,6 +10,12 @@ def evaluate_classifier(model, X_test, y_test) -> dict:
     """Evaluate a fitted classifier on the held-out test split."""
 
     preds = model.predict(X_test)
+    return evaluate_predictions(y_test, preds)
+
+
+def evaluate_predictions(y_test, preds) -> dict:
+    """Compute metrics from saved predictions without running inference again."""
+
     precision, recall, f1, _ = precision_recall_fscore_support(
         y_test,
         preds,

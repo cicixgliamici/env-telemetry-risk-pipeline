@@ -109,8 +109,8 @@ A good reviewer question is: "Why not use `failure_risk`?" The answer is that th
 The pipeline uses a held-out split:
 
 ```text
-training set: used to fit model parameters
-test set: used once to estimate generalization
+training set: used for stratified cross-validation and fitting the selected model
+test set: used once to estimate the selected model's generalization
 ```
 
 The split is stratified by target class. Stratification preserves the approximate class distribution in train and test sets, which matters when classes are imbalanced or the dataset is small.
@@ -122,6 +122,8 @@ P_train(y = c) ~= P_test(y = c)
 ```
 
 This makes evaluation less sensitive to unlucky splits.
+
+Candidate selection uses the highest mean weighted F1 across training-only folds. The selected candidate is refitted on the full training split before final evaluation. No candidate test scores enter the selection decision. At least two observations per training class are required; insufficient data raises an error rather than reusing the test set. The split remains random and stratified, so this experiment does not establish performance on future timestamps.
 
 ## Logistic Regression
 
@@ -398,14 +400,15 @@ The dataset is too small for strong performance claims. The current value is in 
 
 - The included dataset is small, so metrics are useful mainly as smoke evidence.
 - A deterministic synthetic generator is included for review-scale smoke tests, but it is not a substitute for domain-collected production data.
-- There is no cross-validation or hyperparameter search yet.
+- Training-only cross-validation selects the model; hyperparameter search is not implemented.
+- Imputation still uses medians computed before splitting. A fitted preprocessing pipeline is needed to isolate preprocessing within training folds.
 - Feature thresholds are heuristic and should be calibrated with domain input.
 - Runtime paths are currently code-configured rather than environment-configured.
 - The model artifact does not yet include a full metadata bundle with feature names, training config, and data version.
 
 ## Useful Next Steps
 
-- Add cross-validation for more stable model comparison.
+- Move imputation into a fitted pipeline and assess whether chronological validation fits the intended prediction task.
 - Persist model metadata next to serialized model files.
 - Add configurable output directories for cleaner test isolation and scheduled runs.
 - Add domain range validation for telemetry values.

@@ -2,6 +2,7 @@ import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import make_scorer, precision_score
 from sklearn.model_selection import StratifiedKFold, cross_validate
 
 from src.config import (
@@ -15,7 +16,7 @@ from src.config import (
     TEST_SIZE,
 )
 from src.data_loader import load_csv
-from src.evaluate import evaluate_classifier, summarize_candidate_metrics
+from src.evaluate import evaluate_predictions
 from src.feature_engineering import add_engineered_features
 from src.preprocessing import clean_dataset, split_features_target
 from src.utils import ensure_dir, get_logger, save_json, utc_timestamp, write_text_file
@@ -30,12 +31,17 @@ def _cross_validate_candidates(candidates: dict, X: pd.DataFrame, y: pd.Series) 
     min_class_count = int(y.value_counts().min())
     folds = min(3, min_class_count)
     if folds < 2:
-        return {}
+        # Never fall back to choosing a model on the held-out test set.
+        raise ValueError(
+            "Model selection requires at least two training rows per class "
+            "for stratified cross-validation. Provide more labeled observations."
+        )
 
     cv = StratifiedKFold(n_splits=folds, shuffle=True, random_state=RANDOM_STATE)
     scoring = {
         "accuracy": "accuracy",
-        "precision_weighted": "precision_weighted",
+        # Small validation folds can leave a class without predicted observations.
+        "precision_weighted": make_scorer(precision_score, average="weighted", zero_division=0),
         "recall_weighted": "recall_weighted",
         "f1_weighted": "f1_weighted",
     }
@@ -105,36 +111,32 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
             class_weight="balanced",
         ),
     }
-    cross_validation = _cross_validate_candidates(candidates, featured.drop(
-        columns=[TARGET_COLUMN, "failure_risk", "timestamp"],
-        errors="ignore",
-    ), featured[TARGET_COLUMN])
-
-    trained_models = {}
-    candidate_metrics = {}
-    for model_name, model in candidates.items():
-        LOGGER.info("Training candidate model: %s", model_name)
-        model.fit(X_train, y_train)
-        trained_models[model_name] = model
-        candidate_metrics[model_name] = evaluate_classifier(model, X_test, y_test)
-
-    # Select the model with the strongest weighted F1 to balance class performance.
+    # Keep test observations outside every fold and every model selection decision.
+    cross_validation = _cross_validate_candidates(candidates, X_train, y_train)
     best_model_name = max(
-        candidate_metrics,
-        key=lambda name: candidate_metrics[name]["f1_weighted"],
+        cross_validation,
+        key=lambda name: cross_validation[name]["f1_weighted_mean"],
     )
-    model = trained_models[best_model_name]
-    metrics = candidate_metrics[best_model_name]
+    model = candidates[best_model_name]
+    LOGGER.info("Fitting selected model on the full training split: %s", best_model_name)
+    model.fit(X_train, y_train)
+    # Reuse these final predictions for metrics and CSV output to evaluate only once.
+    test_predictions = model.predict(X_test)
+    metrics = evaluate_predictions(y_test, test_predictions)
     metrics["selected_model"] = best_model_name
-    metrics["candidate_models"] = summarize_candidate_metrics(candidate_metrics)
+    metrics["selection_metric"] = "f1_weighted_mean"
+    metrics["selection_dataset"] = "training_cross_validation"
+    metrics["evaluation_dataset"] = "held_out_test"
+    metrics["candidate_models"] = cross_validation
     metrics["cross_validation"] = cross_validation
     metrics["run_timestamp_utc"] = utc_timestamp()
     save_json(metrics, OUTPUT_DIR / "metrics.json")
-    save_json(candidate_metrics, OUTPUT_DIR / "model_comparison.json")
+    # Candidate comparisons contain training CV scores, never candidate test scores.
+    save_json(cross_validation, OUTPUT_DIR / "model_comparison.json")
     pd.DataFrame(
         {
             "y_true": y_test.reset_index(drop=True),
-            "y_pred": pd.Series(model.predict(X_test)),
+            "y_pred": pd.Series(test_predictions),
         }
     ).to_csv(OUTPUT_DIR / "predictions.csv", index=False)
 
@@ -143,6 +145,9 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
     model_metadata = {
         "run_timestamp_utc": metrics["run_timestamp_utc"],
         "selected_model": best_model_name,
+        "selection_metric": metrics["selection_metric"],
+        "selection_dataset": metrics["selection_dataset"],
+        "evaluation_dataset": metrics["evaluation_dataset"],
         "model_artifact": str(MODELS_DIR / model_filename),
         "raw_data_path": str(raw_data_path),
         "target_column": TARGET_COLUMN,
@@ -167,26 +172,13 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
                 "",
                 f"- Timestamp (UTC): {metrics['run_timestamp_utc']}",
                 f"- Selected model: {best_model_name}",
-                f"- Accuracy: {metrics['accuracy']:.4f}",
-                f"- Weighted F1: {metrics['f1_weighted']:.4f}",
+                "- Selection: highest mean weighted F1 in training-only cross-validation",
+                f"- Held-out test accuracy: {metrics['accuracy']:.4f}",
+                f"- Held-out test weighted F1: {metrics['f1_weighted']:.4f}",
                 f"- Training rows: {len(X_train)}",
                 f"- Test rows: {len(X_test)}",
                 "",
-                "## Candidate Models",
-                "",
-            ]
-            + [
-                (
-                    f"- {name}: accuracy={values['accuracy']:.4f}, "
-                    f"precision={values['precision_weighted']:.4f}, "
-                    f"recall={values['recall_weighted']:.4f}, "
-                    f"f1={values['f1_weighted']:.4f}"
-                )
-                for name, values in metrics["candidate_models"].items()
-            ]
-            + [
-                "",
-                "## Cross-Validation",
+                "## Candidate Models: Training Cross-Validation",
                 "",
             ]
             + [
@@ -199,7 +191,7 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
             ]
             + [
                 "",
-                "## Per-Class Metrics",
+                "## Held-Out Test Per-Class Metrics",
                 "",
             ]
             + [
