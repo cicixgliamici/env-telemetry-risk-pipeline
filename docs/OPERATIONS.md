@@ -54,6 +54,8 @@ Run batch prediction after training:
 python -m src predict --input data/raw/raw_dataset.csv --model models/random_forest_model.pkl
 ```
 
+Use the selected model filename reported by training. New artifacts contain the complete fitted preprocessing and classifier pipeline and infer their input schema from the artifact. `--metadata` is only used for older bare classifiers. Retrain old models to obtain training-fitted preprocessing; the compatibility path retains batch-dependent preprocessing for those old artifacts.
+
 Run lint and security-oriented static checks:
 
 ```powershell
@@ -96,6 +98,8 @@ docker run --rm env-telemetry-risk-pipeline:local
 - `data/outputs/anomaly_summary.json`
 - `models/*.pkl`
 - `reports/figures/*.png`
+
+For supervised training, `cleaned_dataset.csv` retains missing telemetry values. `featured_dataset.csv` contains unscaled engineered features computed with the winning pipeline's training-fitted imputer, plus the original labels and timestamps for audit. This export is generated after fitting and does not participate in model selection.
 
 ## Production Hardening Ideas
 

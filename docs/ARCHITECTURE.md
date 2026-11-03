@@ -8,9 +8,9 @@ The project is organized as a lightweight Python package with a simple CLI entry
 
 1. `src.cli` parses the user command.
 2. `src.data_loader` loads the raw CSV and delegates schema checks to `src.validation`.
-3. `src.preprocessing` normalizes and cleans the dataset.
-4. `src.feature_engineering` adds derived model features.
-5. `src.train` or `src.anomaly` runs the selected pipeline.
+3. For supervised training, `src.preprocessing` normalizes, deduplicates, and sorts rows without imputing missing inputs, then creates the train/test split.
+4. `src.modeling` builds candidate pipelines that impute inputs, add derived features, optionally scale, and classify. Cross-validation fits each pipeline on its fold's training observations only.
+5. `src.train` selects a candidate using training-only cross-validation, refits it on the full training split, and evaluates it on the held-out test split. The independent anomaly path retains its existing batch cleaning and feature engineering.
 6. `src.evaluate`, `src.visualize`, and `src.utils` write metrics and artifacts.
 
 ## Module Responsibilities
@@ -20,6 +20,8 @@ The project is organized as a lightweight Python package with a simple CLI entry
 - `src/data_loader.py`: CSV loading after validation
 - `src/preprocessing.py`: cleaning and train/test split preparation
 - `src/feature_engineering.py`: derived telemetry features
+- `src/modeling.py`: supervised pipelines with fitted imputation and optional standard scaling
+- `src/predict.py`: batch inference using the saved pipeline and its embedded input schema
 - `src/train.py`: supervised model comparison and artifact generation
 - `src/anomaly.py`: unsupervised anomaly detection pipeline
 - `src/evaluate.py`: model metrics and comparable summaries
@@ -31,5 +33,7 @@ The project is organized as a lightweight Python package with a simple CLI entry
 
 - Validation fails early before model execution.
 - Outputs are written to predictable project folders.
+- Supervised `.pkl` artifacts contain the entire fitted pipeline. New artifacts do not require an external metadata file for prediction; older bare classifiers retain a compatibility path with their original preprocessing behavior.
+- Prediction preserves input row order and duplicates and never fits the new pipeline on scoring data.
 - Logging is intentionally simple and console-first.
 - Current configuration is code-based; environment-driven config would be the next step for deployment flexibility.

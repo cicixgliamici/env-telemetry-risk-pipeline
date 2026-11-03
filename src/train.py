@@ -1,7 +1,5 @@
 import joblib
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import make_scorer, precision_score
 from sklearn.model_selection import StratifiedKFold, cross_validate
 
@@ -17,12 +15,24 @@ from src.config import (
 )
 from src.data_loader import load_csv
 from src.evaluate import evaluate_predictions
-from src.feature_engineering import add_engineered_features
+from src.modeling import build_model_candidates
 from src.preprocessing import clean_dataset, split_features_target
 from src.utils import ensure_dir, get_logger, save_json, utc_timestamp, write_text_file
 from src.visualize import plot_confusion_matrix, plot_feature_importance
 
 LOGGER = get_logger("src.train")
+
+
+def _save_featured_dataset(model, dataset: pd.DataFrame) -> None:
+    """Export interpretable features using only the selected model's fitted imputer."""
+
+    raw_features = dataset[list(model.feature_names_in_)]
+    imputed = model.named_steps["imputer"].transform(raw_features)
+    engineered = model.named_steps["feature_engineering"].transform(imputed)
+    # Keep labels and timestamps in this audit export, outside the model inputs.
+    featured = dataset.copy()
+    featured[engineered.columns] = engineered
+    featured.to_csv(PROCESSED_DIR / "featured_dataset.csv", index=False)
 
 
 def _cross_validate_candidates(candidates: dict, X: pd.DataFrame, y: pd.Series) -> dict:
@@ -78,16 +88,13 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
 
     LOGGER.info("Loading dataset from %s", raw_data_path)
     df = load_csv(raw_data_path)
-    cleaned = clean_dataset(df)
+    # Split before any statistics are learned; CV clones and fits the entire pipeline.
+    cleaned = clean_dataset(df, impute_numeric=False)
     LOGGER.info("Cleaned dataset with %s rows", len(cleaned))
     cleaned.to_csv(PROCESSED_DIR / "cleaned_dataset.csv", index=False)
 
-    featured = add_engineered_features(cleaned)
-    featured.to_csv(PROCESSED_DIR / "featured_dataset.csv", index=False)
-    LOGGER.info("Feature-engineered dataset has %s columns", len(featured.columns))
-
     X_train, X_test, y_train, y_test = split_features_target(
-        featured,
+        cleaned,
         TARGET_COLUMN,
         TEST_SIZE,
         RANDOM_STATE,
@@ -98,19 +105,7 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
         len(X_test),
     )
 
-    candidates = {
-        "random_forest": RandomForestClassifier(
-            n_estimators=250,
-            max_depth=8,
-            random_state=RANDOM_STATE,
-            class_weight="balanced",
-        ),
-        "logistic_regression": LogisticRegression(
-            max_iter=1000,
-            random_state=RANDOM_STATE,
-            class_weight="balanced",
-        ),
-    }
+    candidates = build_model_candidates()
     # Keep test observations outside every fold and every model selection decision.
     cross_validation = _cross_validate_candidates(candidates, X_train, y_train)
     best_model_name = max(
@@ -120,6 +115,7 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
     model = candidates[best_model_name]
     LOGGER.info("Fitting selected model on the full training split: %s", best_model_name)
     model.fit(X_train, y_train)
+    _save_featured_dataset(model, cleaned)
     # Reuse these final predictions for metrics and CSV output to evaluate only once.
     test_predictions = model.predict(X_test)
     metrics = evaluate_predictions(y_test, test_predictions)
@@ -154,7 +150,15 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
         "excluded_columns": [TARGET_COLUMN, "failure_risk", "timestamp"],
         "feature_columns": list(X_train.columns),
         "candidate_models": sorted(candidates.keys()),
-        "selected_model_params": model.get_params(),
+        "selected_model_params": model.named_steps["classifier"].get_params(),
+        "artifact_format": "telemetry_pipeline_v1",
+        "engineered_feature_columns": list(model.named_steps["classifier"].feature_names_in_),
+        "preprocessing": {
+            "steps": list(model.named_steps),
+            "imputation_strategy": "median",
+            "empty_feature_fill_value": 0,
+            "standard_scaling": best_model_name == "logistic_regression",
+        },
         "random_state": RANDOM_STATE,
         "test_size": TEST_SIZE,
         "training_rows": int(len(X_train)),
@@ -162,7 +166,10 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
         "cross_validation": cross_validation,
     }
     save_json(model_metadata, OUTPUT_DIR / "model_metadata.json")
-    plot_feature_importance(model, X_train.columns, FIGURES_DIR / "feature_importance.png")
+    classifier = model.named_steps["classifier"]
+    plot_feature_importance(
+        classifier, classifier.feature_names_in_, FIGURES_DIR / "feature_importance.png"
+    )
     plot_confusion_matrix(metrics["confusion_matrix"], FIGURES_DIR / "confusion_matrix.png")
     per_class_metrics = metrics["classification_report_dict"]
     write_text_file(

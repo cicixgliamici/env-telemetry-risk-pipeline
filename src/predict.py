@@ -3,6 +3,7 @@ from pathlib import Path
 
 import joblib
 import pandas as pd
+from sklearn.pipeline import Pipeline
 
 from src.config import OUTPUT_DIR, RAW_DATA_PATH
 from src.data_loader import load_csv
@@ -22,7 +23,7 @@ def prepare_prediction_features(
     raw_data_path: str | Path = RAW_DATA_PATH,
     feature_columns: list[str] | None = None,
 ) -> pd.DataFrame:
-    """Prepare prediction features without changing input row order or count."""
+    """Prepare raw pipeline inputs without learning statistics or changing rows."""
 
     return _prepare_prediction_features(load_csv(raw_data_path), feature_columns)
 
@@ -30,9 +31,16 @@ def prepare_prediction_features(
 def _prepare_prediction_features(
     dataset: pd.DataFrame,
     feature_columns: list[str] | None,
+    *,
+    legacy_preprocessing: bool = False,
 ) -> pd.DataFrame:
     # Keep row positions stable so labels and probabilities match the source CSV.
-    featured = add_engineered_features(clean_dataset(dataset, preserve_rows=True))
+    featured = clean_dataset(
+        dataset, preserve_rows=True, impute_numeric=legacy_preprocessing
+    )
+    # Bare classifiers from earlier versions still expect externally engineered inputs.
+    if legacy_preprocessing:
+        featured = add_engineered_features(featured)
     if feature_columns is None:
         return featured.drop(columns=["risk_level", "failure_risk", "timestamp"], errors="ignore")
     missing_columns = sorted(set(feature_columns) - set(featured.columns))
@@ -52,10 +60,16 @@ def run_batch_prediction(
     """Run batch predictions from a serialized model and save a CSV output."""
 
     model = joblib.load(model_path)
-    feature_columns = _load_feature_columns(metadata_path)
+    is_pipeline = isinstance(model, Pipeline) and "feature_engineering" in model.named_steps
+    # The fitted pipeline owns its schema; scoring does not require a metadata sidecar.
+    feature_columns = (
+        list(model.feature_names_in_) if is_pipeline else _load_feature_columns(metadata_path)
+    )
     # Read once so features and output rows always come from the same input snapshot.
     result = load_csv(raw_data_path).copy()
-    X = _prepare_prediction_features(result, feature_columns)
+    X = _prepare_prediction_features(
+        result, feature_columns, legacy_preprocessing=not is_pipeline
+    )
     predictions = model.predict(X)
 
     result["predicted_risk_level"] = predictions

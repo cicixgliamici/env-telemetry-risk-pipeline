@@ -10,15 +10,19 @@ def normalize_column_names(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def clean_dataset(df: pd.DataFrame, *, preserve_rows: bool = False) -> pd.DataFrame:
-    """Clean values, optionally preserving every input row and its position."""
+def clean_dataset(
+    df: pd.DataFrame, *, preserve_rows: bool = False, impute_numeric: bool = True
+) -> pd.DataFrame:
+    """Clean rows, optionally leaving missing values for a fitted model pipeline."""
 
     out = normalize_column_names(df)
     # Inference needs one output per input row, including repeated observations.
     if not preserve_rows:
         out = out.drop_duplicates().copy()
-    for column in out.select_dtypes(include="number").columns:
-        out[column] = out[column].fillna(out[column].median())
+    # Supervised models fit their imputer inside each training fold instead.
+    if impute_numeric:
+        for column in out.select_dtypes(include="number").columns:
+            out[column] = out[column].fillna(out[column].median())
 
     if "timestamp" in out.columns:
         out["timestamp"] = pd.to_datetime(out["timestamp"])

@@ -13,7 +13,9 @@ Small ML pipeline for environmental telemetry data with a clearer structure, dat
 - runs anomaly detection with `IsolationForest`
 - saves metrics, predictions, artifacts, and plots
 
-Model selection uses mean weighted F1 from stratified cross-validation on the training split only. The selected model is fitted on the full training split, then evaluated once on the held-out test split. `model_comparison.json` contains candidate cross-validation means and standard deviations; final test metrics belong only to the winner. Training requires at least two observations per class in the training split. Imputation still happens before splitting and will need a fitted preprocessing pipeline to isolate its statistics.
+Model selection uses mean weighted F1 from stratified cross-validation on the training split only. The selected model is fitted on the full training split, then evaluated once on the held-out test split. `model_comparison.json` contains candidate cross-validation means and standard deviations; final test metrics belong only to the winner. Training requires at least two observations per class in the training split.
+
+Each supervised model is saved as a complete scikit-learn `Pipeline`: median imputation, feature engineering, optional standard scaling for logistic regression, and classification. Imputation and scaling are fitted separately inside each training fold and frozen during prediction. The fitted artifact contains its raw feature schema, so new pipeline predictions do not require `model_metadata.json`.
 
 ## Project Layout
 

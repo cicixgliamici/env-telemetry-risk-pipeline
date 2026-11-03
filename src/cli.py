@@ -52,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     predict_parser.add_argument(
         "--metadata",
         default="data/outputs/model_metadata.json",
-        help="Path to model metadata with feature columns",
+        help="Feature metadata for legacy classifiers; fitted pipelines use their own schema",
     )
     predict_parser.add_argument(
         "--output",

@@ -72,7 +72,7 @@ def test_prediction_preserves_input_rows(valid_dataset_df, tmp_path: Path, row_p
 def test_prepare_prediction_features_uses_metadata_feature_order(valid_dataset_df, tmp_path: Path):
     input_path = tmp_path / "dataset.csv"
     valid_dataset_df.to_csv(input_path, index=False)
-    feature_columns = ["humidity_temp_index", "pressure_deviation"]
+    feature_columns = ["humidity_pct", "pressure_hpa"]
 
     X = prepare_prediction_features(input_path, feature_columns=feature_columns)
 

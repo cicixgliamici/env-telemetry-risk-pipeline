@@ -41,7 +41,9 @@ Expected raw columns:
 - `risk_level`
 - `failure_risk`
 
-The model uses engineered telemetry features derived from the raw numeric inputs. The columns `risk_level`, `failure_risk`, and `timestamp` are excluded from supervised model features.
+The saved pipeline accepts raw numeric telemetry inputs. It imputes missing inputs before creating engineered features. The columns `risk_level`, `failure_risk`, and `timestamp` are excluded from supervised model features.
+
+Each cross-validation fold learns its own median imputations. Logistic regression also learns standard scaling after feature engineering; Random Forest uses unscaled features. The winning pipeline is refitted on the full training split. Prediction reuses these fitted statistics without recomputing them on the incoming batch. A feature missing throughout a training fold retains its column and is filled with zero, a reproducible fallback rather than a domain estimate.
 
 ## Output
 
@@ -69,7 +71,7 @@ The pipeline reports:
 - per-class classification report
 - compact stratified cross-validation summary
 
-Mean cross-validation weighted F1 is used for model selection because it combines precision and recall while accounting for class support. `model_comparison.json` and `candidate_models` in `metrics.json` contain training cross-validation statistics with explicit `_mean` and `_std` keys. Headline and per-class metrics in `metrics.json` describe only the selected model on the held-out test split. Metadata records the selection metric and the datasets used for selection and evaluation.
+Mean cross-validation weighted F1 is used for model selection because it combines precision and recall while accounting for class support. `model_comparison.json` and `candidate_models` in `metrics.json` contain training cross-validation statistics with explicit `_mean` and `_std` keys. Headline and per-class metrics in `metrics.json` describe only the selected model on the held-out test split. Metadata records the selection metric, the datasets used for selection and evaluation, raw `feature_columns`, `engineered_feature_columns`, and preprocessing steps. The serialized artifact is a fitted `Pipeline` (`telemetry_pipeline_v1`), with its own input schema and learned preprocessing statistics.
 
 ## Ethical And Safety Notes
 
@@ -92,7 +94,7 @@ The synthetic dataset is useful for testing and demonstrations, but it does not 
 - No production data drift monitor is active yet.
 - The model artifact is local and does not yet use a registry.
 - Cross-validation improves review confidence but does not replace representative data.
-- Numeric imputation still computes medians before the split; moving it into a fitted preprocessing pipeline is pending. Model selection and final evaluation are separated, but preprocessing is not yet isolated within each fold.
+- Zero-filling a feature absent throughout a training fold preserves the schema but does not establish that zero is a physically meaningful value.
 - Random stratified splitting does not measure future-time generalization; chronological evaluation requires a separate design and enough historical data.
 
 ## Recommended Monitoring

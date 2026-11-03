@@ -29,15 +29,14 @@ In this project, `y` is the `risk_level` column. The `failure_risk` column is de
 ```mermaid
 flowchart LR
     A[Raw CSV] --> B[Schema validation]
-    B --> C[Cleaning and timestamp sorting]
-    C --> D[Feature engineering]
-    D --> E[Train/test split]
-    E --> F1[Logistic Regression]
-    E --> F2[Random Forest]
-    F1 --> G[Evaluate weighted metrics]
-    F2 --> G
-    G --> H[Select best weighted F1]
-    H --> I[Save metrics, predictions, model, plots]
+    B --> C[Normalize, deduplicate, sort]
+    C --> E[Train/test split without imputation]
+    E --> F[Training-only cross-validation of complete pipelines]
+    F --> H[Select best mean weighted F1]
+    H --> R[Refit winning pipeline on training split]
+    R --> G[Evaluate once on held-out test]
+    G --> I[Save fitted pipeline, metrics, predictions, plots]
+    B --> D[Independent batch cleaning and feature engineering]
     D --> J[IsolationForest anomaly detection]
     J --> K[Save anomaly labels and summary]
 ```
@@ -67,6 +66,8 @@ For a reviewer, the validation layer demonstrates:
 ## Feature Engineering
 
 The raw telemetry columns are transformed into additional signals. These are intentionally simple and auditable.
+
+For supervised learning, feature engineering is part of the serialized model pipeline and runs after raw missing values are imputed. It uses only the imputer statistics learned from the relevant training fold or final training split.
 
 | Feature | Formula | Intuition |
 | --- | --- | --- |
@@ -125,6 +126,20 @@ This makes evaluation less sensitive to unlucky splits.
 
 Candidate selection uses the highest mean weighted F1 across training-only folds. The selected candidate is refitted on the full training split before final evaluation. No candidate test scores enter the selection decision. At least two observations per training class are required; insufficient data raises an error rather than reusing the test set. The split remains random and stratified, so this experiment does not establish performance on future timestamps.
 
+## Fitted Preprocessing
+
+Each supervised candidate is a scikit-learn `Pipeline`:
+
+```text
+raw telemetry -> median imputation -> feature engineering -> optional scaling -> classifier
+```
+
+The pipeline is cloned and fitted inside each cross-validation fold. Every imputer median and scaler mean/variance therefore comes only from that fold's training observations. The winner is refitted on the full training split, then serialized with these learned statistics. Test and incoming scoring data are transformed without fitting again.
+
+Logistic regression uses `StandardScaler` after feature engineering. For each feature, scaling applies `(value - training_mean) / training_standard_deviation`. Random Forest keeps unscaled engineered values because its tree splits do not require standardization. An entirely missing training feature is retained and filled with zero to keep a stable schema; this fallback is not a domain estimate.
+
+`model_metadata.json` distinguishes raw `feature_columns` from `engineered_feature_columns`. The serialized pipeline owns its raw input schema, so pipeline prediction does not require the metadata file. `prepare_prediction_features()` prepares raw, un-imputed telemetry for these new artifacts. Older bare-classifier artifacts retain their original external preprocessing path; retraining is needed to obtain fitted preprocessing.
+
 ## Logistic Regression
 
 Logistic Regression is used as a transparent baseline. For binary classification, it estimates:
@@ -158,7 +173,7 @@ Limitations:
 
 - assumes mostly linear relationships in feature space
 - can underfit if interactions are important
-- can be sensitive to feature scale, though the current baseline is acceptable for smoke-level comparison
+- requires consistent feature scaling, provided here by a training-fitted `StandardScaler`
 
 ## Random Forest
 
@@ -218,10 +233,10 @@ This matters because accuracy alone can look good even when a model ignores a mi
 
 ## Model Selection
 
-The pipeline trains both candidate models and selects the one with the best weighted F1 score:
+The pipeline cross-validates both candidates on training observations and selects the best mean weighted F1 score:
 
 ```text
-best_model = argmax_model weighted_f1(model)
+best_model = argmax_model mean_training_cv_weighted_f1(model)
 ```
 
 Weighted F1 is chosen because it combines precision and recall while accounting for class support.
@@ -401,14 +416,14 @@ The dataset is too small for strong performance claims. The current value is in 
 - The included dataset is small, so metrics are useful mainly as smoke evidence.
 - A deterministic synthetic generator is included for review-scale smoke tests, but it is not a substitute for domain-collected production data.
 - Training-only cross-validation selects the model; hyperparameter search is not implemented.
-- Imputation still uses medians computed before splitting. A fitted preprocessing pipeline is needed to isolate preprocessing within training folds.
+- Missing values are imputed within training folds, but domain-specific missingness mechanisms are not modeled.
 - Feature thresholds are heuristic and should be calibrated with domain input.
 - Runtime paths are currently code-configured rather than environment-configured.
-- The model artifact does not yet include a full metadata bundle with feature names, training config, and data version.
+- The model artifact includes fitted preprocessing and its input schema; metadata remains a separate audit file and does not yet include a dataset version.
 
 ## Useful Next Steps
 
-- Move imputation into a fitted pipeline and assess whether chronological validation fits the intended prediction task.
+- Assess whether chronological validation fits the intended prediction task.
 - Persist model metadata next to serialized model files.
 - Add configurable output directories for cleaner test isolation and scheduled runs.
 - Add domain range validation for telemetry values.
