@@ -22,9 +22,17 @@ def prepare_prediction_features(
     raw_data_path: str | Path = RAW_DATA_PATH,
     feature_columns: list[str] | None = None,
 ) -> pd.DataFrame:
-    """Load raw telemetry data and prepare model-ready prediction features."""
+    """Prepare prediction features without changing input row order or count."""
 
-    featured = add_engineered_features(clean_dataset(load_csv(raw_data_path)))
+    return _prepare_prediction_features(load_csv(raw_data_path), feature_columns)
+
+
+def _prepare_prediction_features(
+    dataset: pd.DataFrame,
+    feature_columns: list[str] | None,
+) -> pd.DataFrame:
+    # Keep row positions stable so labels and probabilities match the source CSV.
+    featured = add_engineered_features(clean_dataset(dataset, preserve_rows=True))
     if feature_columns is None:
         return featured.drop(columns=["risk_level", "failure_risk", "timestamp"], errors="ignore")
     missing_columns = sorted(set(feature_columns) - set(featured.columns))
@@ -45,10 +53,11 @@ def run_batch_prediction(
 
     model = joblib.load(model_path)
     feature_columns = _load_feature_columns(metadata_path)
-    X = prepare_prediction_features(raw_data_path, feature_columns=feature_columns)
+    # Read once so features and output rows always come from the same input snapshot.
+    result = load_csv(raw_data_path).copy()
+    X = _prepare_prediction_features(result, feature_columns)
     predictions = model.predict(X)
 
-    result = load_csv(raw_data_path).copy()
     result["predicted_risk_level"] = predictions
     if hasattr(model, "predict_proba"):
         probabilities = model.predict_proba(X)

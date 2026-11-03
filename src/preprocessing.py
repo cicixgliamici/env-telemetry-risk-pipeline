@@ -10,16 +10,20 @@ def normalize_column_names(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def clean_dataset(df: pd.DataFrame) -> pd.DataFrame:
-    """Deduplicate, impute numeric gaps, and sort by timestamp when present."""
+def clean_dataset(df: pd.DataFrame, *, preserve_rows: bool = False) -> pd.DataFrame:
+    """Clean values, optionally preserving every input row and its position."""
 
-    out = normalize_column_names(df).drop_duplicates().copy()
+    out = normalize_column_names(df)
+    # Inference needs one output per input row, including repeated observations.
+    if not preserve_rows:
+        out = out.drop_duplicates().copy()
     for column in out.select_dtypes(include="number").columns:
         out[column] = out[column].fillna(out[column].median())
 
     if "timestamp" in out.columns:
         out["timestamp"] = pd.to_datetime(out["timestamp"])
-        out = out.sort_values("timestamp").reset_index(drop=True)
+        if not preserve_rows:
+            out = out.sort_values("timestamp").reset_index(drop=True)
     return out
 
 
