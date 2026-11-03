@@ -4,6 +4,7 @@ import joblib
 import pandas as pd
 import pytest
 
+from src.modeling import build_model_candidates
 from src.predict import prepare_prediction_features, run_batch_prediction
 from src.train import run_training
 
@@ -54,16 +55,18 @@ def test_prediction_preserves_input_rows(valid_dataset_df, tmp_path: Path, row_p
     # Check persisted results too: both labels and probabilities must follow input order.
     for predictions in [result, pd.read_csv(output_path)]:
         assert len(predictions) == len(dataset)
-        assert pd.to_datetime(predictions["timestamp"]).tolist() == pd.to_datetime(
-            dataset["timestamp"]
-        ).tolist()
+        assert (
+            pd.to_datetime(predictions["timestamp"]).tolist()
+            == pd.to_datetime(dataset["timestamp"]).tolist()
+        )
         pd.testing.assert_frame_equal(
             predictions[dataset.columns].drop(columns="timestamp"),
             dataset.drop(columns="timestamp"),
         )
-        assert predictions["predicted_risk_level"].tolist() == (
-            dataset["humidity_pct"] >= 80
-        ).astype(int).tolist()
+        assert (
+            predictions["predicted_risk_level"].tolist()
+            == (dataset["humidity_pct"] >= 80).astype(int).tolist()
+        )
         assert predictions["predicted_risk_probability"].tolist() == pytest.approx(
             dataset["humidity_pct"] / 100.0
         )
@@ -108,3 +111,29 @@ def test_batch_prediction_can_use_training_metadata():
 
     assert "predicted_risk_level" in result.columns
     assert len(result) > 0
+
+
+@pytest.mark.parametrize("include_labels", [False, True])
+@pytest.mark.parametrize("row_positions", [[0], [0, 0]])
+def test_pipeline_scores_unlabeled_and_single_class_batches(
+    valid_dataset_df, tmp_path, include_labels, row_positions
+):
+    pipeline = build_model_candidates()["logistic_regression"]
+    raw_columns = valid_dataset_df.columns.difference(["timestamp", "risk_level", "failure_risk"])
+    pipeline.fit(valid_dataset_df[raw_columns], valid_dataset_df["risk_level"])
+    model_path = tmp_path / "pipeline.pkl"
+    joblib.dump(pipeline, model_path)
+    incoming = valid_dataset_df.iloc[row_positions].reset_index(drop=True)
+    if not include_labels:
+        incoming = incoming.drop(columns=["risk_level", "failure_risk"])
+    input_path = tmp_path / "incoming.csv"
+    incoming.to_csv(input_path, index=False)
+
+    result = run_batch_prediction(model_path, input_path, tmp_path / "predictions.csv")
+
+    assert len(result) == len(incoming)
+    assert (
+        result["predicted_risk_level"].tolist() == pipeline.predict(incoming[raw_columns]).tolist()
+    )
+    assert ("risk_level" in result.columns) == include_labels
+    assert ("failure_risk" in result.columns) == include_labels

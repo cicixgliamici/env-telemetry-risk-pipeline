@@ -25,7 +25,9 @@ def prepare_prediction_features(
 ) -> pd.DataFrame:
     """Prepare raw pipeline inputs without learning statistics or changing rows."""
 
-    return _prepare_prediction_features(load_csv(raw_data_path), feature_columns)
+    return _prepare_prediction_features(
+        load_csv(raw_data_path, purpose="prediction"), feature_columns
+    )
 
 
 def _prepare_prediction_features(
@@ -35,9 +37,7 @@ def _prepare_prediction_features(
     legacy_preprocessing: bool = False,
 ) -> pd.DataFrame:
     # Keep row positions stable so labels and probabilities match the source CSV.
-    featured = clean_dataset(
-        dataset, preserve_rows=True, impute_numeric=legacy_preprocessing
-    )
+    featured = clean_dataset(dataset, preserve_rows=True, impute_numeric=legacy_preprocessing)
     # Bare classifiers from earlier versions still expect externally engineered inputs.
     if legacy_preprocessing:
         featured = add_engineered_features(featured)
@@ -66,10 +66,8 @@ def run_batch_prediction(
         list(model.feature_names_in_) if is_pipeline else _load_feature_columns(metadata_path)
     )
     # Read once so features and output rows always come from the same input snapshot.
-    result = load_csv(raw_data_path).copy()
-    X = _prepare_prediction_features(
-        result, feature_columns, legacy_preprocessing=not is_pipeline
-    )
+    result = load_csv(raw_data_path, purpose="prediction").copy()
+    X = _prepare_prediction_features(result, feature_columns, legacy_preprocessing=not is_pipeline)
     predictions = model.predict(X)
 
     result["predicted_risk_level"] = predictions

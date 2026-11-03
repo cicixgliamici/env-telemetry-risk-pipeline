@@ -8,7 +8,7 @@ The dataset represents timestamped telemetry observations with environmental and
 
 ## Schema
 
-Required columns:
+Telemetry columns required for every operation:
 
 | Column | Type | Meaning |
 | --- | --- | --- |
@@ -21,8 +21,8 @@ Required columns:
 | `pressure_hpa` | numeric | atmospheric pressure |
 | `vibration_mm_s` | numeric | vibration measure |
 | `exposure_hours` | numeric | duration of exposure |
-| `risk_level` | numeric class | supervised target |
-| `failure_risk` | numeric class | downstream or comparison label excluded from features |
+
+Training additionally requires `risk_level`, a complete numeric class label with at least two distinct classes. `failure_risk` is an optional comparison label, always excluded from model features. Prediction and anomaly detection require neither label; profiling also uses the telemetry-only contract. Scoring accepts a single row, a single observed class, or missing optional annotations. When labels are present, their non-missing values must be non-negative integers; multiclass labels are supported, although the bundled examples are binary.
 
 ## Bundled Raw Dataset
 
@@ -81,10 +81,25 @@ The loader validates:
 
 - file exists
 - input path is not a directory
-- required columns are present
-- numeric columns are coercible to numbers
-- timestamp values are parseable
-- target has at least two classes
+- the columns required for the requested operation are present
+- normalized column names are unique
+- telemetry and any provided label columns are numeric and contain no positive or negative infinity
+- timestamp values are parseable and never missing
+- training targets are complete, non-negative integer classes with at least two distinct values
+- numeric telemetry values satisfy the ranges below
+
+| Input | Allowed non-missing values |
+| --- | --- |
+| `humidity_pct` | 0 through 100, inclusive |
+| `temperature_c` | at least -273.15 |
+| `rainfall_mm` | non-negative |
+| `pollution_proxy`, `salinity_proxy` | non-negative; no assumed upper bound |
+| `pressure_hpa` | strictly positive |
+| `vibration_mm_s`, `exposure_hours` | non-negative |
+
+These are broad plausibility checks, not sensor specifications or alert thresholds. Proxy units are unspecified, so the generator's upper limit of 100 is not imposed on real inputs. Missing telemetry values remain missing after validation so the fitted supervised pipeline can impute them using training statistics. The independent anomaly path retains its batch imputation behavior.
+
+`load_csv()` and `validate_dataset_schema()` default to `purpose="training"`; callers can select `"prediction"` or `"anomaly"`. The standalone CLI exposes the same contract with `validate --purpose prediction` or `validate --purpose anomaly`. Each modeling command selects its contract automatically. Class counts needed for stratified train/test splitting and cross-validation are checked later by the training pipeline.
 
 ## Data Leakage Notes
 
@@ -102,8 +117,7 @@ The loader validates:
 
 ## Recommended Improvements
 
-- Add domain range validation for each telemetry variable.
-- Add data profile reports.
+- Refine broad bounds with documented sensor specifications and domain input.
 - Add drift comparison between training data and new scoring data.
 - Add scenario-based synthetic datasets.
-- Add missingness and corrupted-row fixtures for robustness tests.
+- Extend existing missingness, invalid-measurement, and unlabeled-scoring tests with domain scenarios.

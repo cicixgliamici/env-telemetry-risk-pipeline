@@ -10,7 +10,7 @@ from src.validation import validate_dataset_schema
 def test_generate_synthetic_dataset_matches_schema_and_validates():
     df = generate_synthetic_dataset(rows=120, seed=7)
 
-    assert set(df.columns) == REQUIRED_COLUMNS
+    assert set(df.columns) == REQUIRED_COLUMNS | {"failure_risk"}
     assert len(df) == 120
     assert df["risk_level"].nunique() == 2
     assert df["failure_risk"].nunique() == 2

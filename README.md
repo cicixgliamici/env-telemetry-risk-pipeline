@@ -33,7 +33,7 @@ Each supervised model is saved as a complete scikit-learn `Pipeline`: median imp
 
 ## Expected Dataset Columns
 
-The raw CSV is expected to contain:
+Every CSV must contain these telemetry columns, including for prediction and anomaly detection:
 
 - `timestamp`
 - `humidity_pct`
@@ -44,8 +44,10 @@ The raw CSV is expected to contain:
 - `pressure_hpa`
 - `vibration_mm_s`
 - `exposure_hours`
-- `risk_level`
-- `failure_risk`
+
+Training additionally requires a complete `risk_level` target with at least two classes. `failure_risk` is always optional and excluded from model inputs. Prediction, anomaly detection, and profiling accept unlabeled data and batches containing just one row or one observed class.
+
+Missing telemetry values are allowed for imputation. Infinite values, missing timestamps, and measurements outside the broad physical ranges are rejected. See the [Dataset Card](docs/DATASET_CARD.md) for exact bounds and label rules.
 
 ## Setup
 
@@ -113,6 +115,14 @@ Validate the dataset:
 ```bash
 python -m src validate --input data/raw/raw_dataset.csv
 ```
+
+Validate new telemetry without requiring labels:
+
+```bash
+python -m src validate --input data/raw/incoming.csv --purpose prediction
+```
+
+`--purpose` accepts `training` (the default), `prediction`, or `anomaly`. The `train`, `predict`, and `anomaly` commands select their own validation rules automatically; profiling uses telemetry-only checks.
 
 Train the baseline model:
 

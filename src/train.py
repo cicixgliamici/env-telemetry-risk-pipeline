@@ -87,7 +87,7 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
         ensure_dir(path)
 
     LOGGER.info("Loading dataset from %s", raw_data_path)
-    df = load_csv(raw_data_path)
+    df = load_csv(raw_data_path, purpose="training")
     # Split before any statistics are learned; CV clones and fits the entire pipeline.
     cleaned = clean_dataset(df, impute_numeric=False)
     LOGGER.info("Cleaned dataset with %s rows", len(cleaned))

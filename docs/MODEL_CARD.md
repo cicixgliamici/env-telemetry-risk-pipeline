@@ -27,7 +27,7 @@ It is not intended as a production safety system without real domain data, calib
 
 ## Inputs
 
-Expected raw columns:
+Telemetry columns required by the CSV interface:
 
 - `timestamp`
 - `humidity_pct`
@@ -38,8 +38,8 @@ Expected raw columns:
 - `pressure_hpa`
 - `vibration_mm_s`
 - `exposure_hours`
-- `risk_level`
-- `failure_risk`
+
+Training additionally requires a non-missing `risk_level` target with at least two non-negative integer classes. `failure_risk` is optional. Prediction and anomaly detection do not require either label and accept single-row or single-class batches. Optional label annotations may be missing; any supplied values must be valid classes. See the Dataset Card for numeric bounds and timestamp requirements.
 
 The saved pipeline accepts raw numeric telemetry inputs. It imputes missing inputs before creating engineered features. The columns `risk_level`, `failure_risk`, and `timestamp` are excluded from supervised model features.
 

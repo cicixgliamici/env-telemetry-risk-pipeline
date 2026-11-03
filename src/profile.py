@@ -23,10 +23,15 @@ def build_data_profile(df: pd.DataFrame) -> dict:
             "std": float(series.std(ddof=0)),
         }
 
-    target_counts = {
-        str(label): int(count)
-        for label, count in df[TARGET_COLUMN].value_counts().sort_index().items()
-    }
+    # Profiling incoming telemetry must not depend on labels becoming available.
+    target_counts = (
+        {
+            str(label): int(count)
+            for label, count in df[TARGET_COLUMN].value_counts().sort_index().items()
+        }
+        if TARGET_COLUMN in df.columns
+        else {}
+    )
     timestamps = pd.to_datetime(df["timestamp"], errors="raise", format="mixed")
     timestamp_min = timestamps.min()
     timestamp_max = timestamps.max()
@@ -34,7 +39,9 @@ def build_data_profile(df: pd.DataFrame) -> dict:
     warnings = []
     if any(count > 0 for count in missing_values.values()):
         warnings.append("Dataset contains missing values.")
-    if len(target_counts) < 2:
+    if TARGET_COLUMN not in df.columns:
+        warnings.append("Target column is absent; target balance is unavailable.")
+    elif len(target_counts) < 2:
         warnings.append("Target column has fewer than two classes.")
     if len(df) < 50:
         warnings.append("Dataset has fewer than 50 rows; model metrics may be unstable.")
@@ -71,13 +78,11 @@ def format_profile_markdown(profile: dict) -> str:
         "## Target Balance",
         "",
     ]
-    lines.extend(
-        f"- Class {label}: {count}" for label, count in profile["target_counts"].items()
-    )
+    lines.extend(f"- Class {label}: {count}" for label, count in profile["target_counts"].items())
+    if not profile["target_counts"]:
+        lines.append("- No target labels available.")
     lines.extend(["", "## Missing Values", ""])
-    lines.extend(
-        f"- {column}: {count}" for column, count in profile["missing_values"].items()
-    )
+    lines.extend(f"- {column}: {count}" for column, count in profile["missing_values"].items())
     lines.extend(["", "## Numeric Summary", ""])
     lines.extend(
         (
@@ -102,7 +107,7 @@ def run_profile(
 
     output_path = Path(output_dir)
     ensure_dir(output_path)
-    df = load_csv(raw_data_path)
+    df = load_csv(raw_data_path, purpose="prediction")
     profile = build_data_profile(df)
     save_json(profile, output_path / "data_profile.json")
     write_text_file(format_profile_markdown(profile), output_path / "data_profile.md")

@@ -36,3 +36,14 @@ def test_run_profile_writes_json_and_markdown(valid_dataset_df, tmp_path: Path):
     assert (output_dir / "data_profile.md").exists()
     saved = json.loads((output_dir / "data_profile.json").read_text(encoding="utf-8"))
     assert saved["rows"] == len(valid_dataset_df)
+
+
+def test_profile_accepts_unlabeled_telemetry(valid_dataset_df, tmp_path):
+    input_path = tmp_path / "incoming.csv"
+    valid_dataset_df.drop(columns=["risk_level", "failure_risk"]).to_csv(input_path, index=False)
+
+    profile = run_profile(input_path, output_dir=tmp_path / "profile")
+
+    assert profile["target_counts"] == {}
+    assert "Target column is absent; target balance is unavailable." in profile["warnings"]
+    assert "No target labels available." in format_profile_markdown(profile)

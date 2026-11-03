@@ -13,8 +13,7 @@ TARGET_COLUMN = "risk_level"
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
 
-REQUIRED_COLUMNS = {
-    "timestamp",
+TELEMETRY_COLUMNS = {
     "humidity_pct",
     "temperature_c",
     "rainfall_mm",
@@ -23,19 +22,20 @@ REQUIRED_COLUMNS = {
     "pressure_hpa",
     "vibration_mm_s",
     "exposure_hours",
-    "risk_level",
-    "failure_risk",
 }
 
-NUMERIC_COLUMNS = {
-    "humidity_pct",
-    "temperature_c",
-    "rainfall_mm",
-    "pollution_proxy",
-    "salinity_proxy",
-    "pressure_hpa",
-    "vibration_mm_s",
-    "exposure_hours",
-    "risk_level",
-    "failure_risk",
+LABEL_COLUMNS = {TARGET_COLUMN, "failure_risk"}
+REQUIRED_COLUMNS = TELEMETRY_COLUMNS | {"timestamp", TARGET_COLUMN}
+NUMERIC_COLUMNS = TELEMETRY_COLUMNS | LABEL_COLUMNS
+
+# Bounds reject impossible measurements without clipping valid extreme observations.
+# Proxy units are unspecified, so only non-negativity is enforced for those inputs.
+NUMERIC_RANGES = {
+    "humidity_pct": (0, 100),
+    "temperature_c": (-273.15, None),
+    "rainfall_mm": (0, None),
+    "pollution_proxy": (0, None),
+    "salinity_proxy": (0, None),
+    "vibration_mm_s": (0, None),
+    "exposure_hours": (0, None),
 }

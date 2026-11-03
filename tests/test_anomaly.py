@@ -1,5 +1,6 @@
 import pytest
 
+import src.anomaly as anomaly
 from src.anomaly import detect_anomalies
 
 
@@ -14,3 +15,23 @@ def test_detect_anomalies_returns_expected_columns():
     assert "anomaly_score" in out.columns
     assert "is_anomaly" in out.columns
     assert "zscore_flag" in out.columns
+
+
+@pytest.mark.parametrize("include_labels", [False, True])
+def test_anomaly_detection_accepts_unlabeled_and_single_class_batches(
+    valid_dataset_df, tmp_path, monkeypatch, include_labels
+):
+    dataset = valid_dataset_df.iloc[:4].copy()
+    if not include_labels:
+        dataset = dataset.drop(columns=["risk_level", "failure_risk"])
+    input_path = tmp_path / "incoming.csv"
+    dataset.to_csv(input_path, index=False)
+    for name in ["PROCESSED_DIR", "OUTPUT_DIR", "MODELS_DIR", "FIGURES_DIR"]:
+        monkeypatch.setattr(anomaly, name, tmp_path / name.lower())
+
+    result = detect_anomalies(contamination=0.25, raw_data_path=input_path)
+
+    assert len(result) == len(dataset)
+    assert result["anomaly_score"].notna().all()
+    assert result["is_anomaly"].isin([0, 1]).all()
+    assert ("risk_level" in result.columns) == include_labels

@@ -155,7 +155,7 @@ def test_training_imputation_ignores_held_out_values(valid_dataset_df, tmp_path,
     )
     # Make full-dataset and training-only medians different to expose pre-split filling.
     dataset.loc[X_train.index[0], "humidity_pct"] = np.nan
-    dataset.loc[X_test.index, "humidity_pct"] = 1000
+    dataset.loc[X_test.index, "humidity_pct"] = 100
     expected_median = dataset.loc[X_train.index, "humidity_pct"].median()
     assert expected_median != dataset["humidity_pct"].median()
     input_path = tmp_path / "missing_telemetry.csv"

@@ -1,3 +1,7 @@
+import json
+
+import pytest
+
 from src.cli import build_parser, main
 
 
@@ -28,9 +32,7 @@ def test_cli_validate_returns_success_for_valid_dataset(capsys):
 
 
 def test_cli_anomaly_returns_error_for_invalid_contamination(capsys):
-    exit_code = main(
-        ["anomaly", "--input", "data/raw/raw_dataset.csv", "--contamination", "0"]
-    )
+    exit_code = main(["anomaly", "--input", "data/raw/raw_dataset.csv", "--contamination", "0"])
 
     captured = capsys.readouterr()
 
@@ -66,9 +68,7 @@ def test_cli_anomaly_prints_summary(monkeypatch, capsys, valid_dataset_df):
         lambda contamination, raw_data_path: out,
     )
 
-    exit_code = main(
-        ["anomaly", "--input", "data/raw/raw_dataset.csv", "--contamination", "0.2"]
-    )
+    exit_code = main(["anomaly", "--input", "data/raw/raw_dataset.csv", "--contamination", "0.2"])
 
     captured = capsys.readouterr()
 
@@ -121,3 +121,25 @@ def test_cli_predict_prints_summary(monkeypatch, capsys, valid_dataset_df):
     assert exit_code == 0
     assert '"status": "ok"' in captured.out
     assert '"rows": 8' in captured.out
+
+
+@pytest.mark.parametrize("purpose", ["prediction", "anomaly"])
+def test_cli_validate_unlabeled_telemetry(valid_dataset_df, tmp_path, capsys, purpose):
+    input_path = tmp_path / "incoming.csv"
+    valid_dataset_df.drop(columns=["risk_level", "failure_risk"]).to_csv(input_path, index=False)
+
+    assert main(["validate", "--input", str(input_path), "--purpose", purpose]) == 0
+    assert json.loads(capsys.readouterr().out)["purpose"] == purpose
+    assert main(["validate", "--input", str(input_path)]) == 1
+    assert "risk_level" in json.loads(capsys.readouterr().out)["message"]
+
+
+def test_cli_reports_invalid_measurement(valid_dataset_df, tmp_path, capsys):
+    valid_dataset_df.loc[0, "humidity_pct"] = 101
+    input_path = tmp_path / "invalid.csv"
+    valid_dataset_df.to_csv(input_path, index=False)
+
+    assert main(["validate", "--input", str(input_path), "--purpose", "prediction"]) == 1
+    error = json.loads(capsys.readouterr().out)
+    assert error["status"] == "error"
+    assert "humidity_pct" in error["message"]

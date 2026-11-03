@@ -29,7 +29,7 @@ def detect_anomalies(contamination: float = 0.03, raw_data_path=RAW_DATA_PATH):
         ensure_dir(path)
 
     LOGGER.info("Running anomaly detection on %s", raw_data_path)
-    df = add_engineered_features(clean_dataset(load_csv(raw_data_path)))
+    df = add_engineered_features(clean_dataset(load_csv(raw_data_path, purpose="anomaly")))
     X = df.drop(columns=["timestamp", "risk_level", "failure_risk"], errors="ignore")
 
     model = IsolationForest(

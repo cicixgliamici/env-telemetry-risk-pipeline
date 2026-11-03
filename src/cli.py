@@ -3,7 +3,7 @@ import json
 
 from src.config import RAW_DATA_PATH
 from src.data_loader import load_csv
-from src.validation import DataValidationError
+from src.validation import DataValidationError, ValidationPurpose
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -13,6 +13,12 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     validate_parser = subparsers.add_parser("validate", help="Validate the input dataset")
+    validate_parser.add_argument(
+        "--purpose",
+        choices=[purpose.value for purpose in ValidationPurpose],
+        default=ValidationPurpose.TRAINING.value,
+        help="Choose training label requirements or telemetry-only prediction/anomaly checks",
+    )
     validate_parser.add_argument(
         "--input",
         default=str(RAW_DATA_PATH),
@@ -83,11 +89,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "validate":
-            df = load_csv(args.input)
+            df = load_csv(args.input, purpose=args.purpose)
             print(
                 json.dumps(
                     {
                         "status": "ok",
+                        "purpose": args.purpose,
                         "rows": int(len(df)),
                         "columns": list(df.columns),
                     },

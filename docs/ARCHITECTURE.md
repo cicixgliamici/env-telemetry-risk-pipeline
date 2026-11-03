@@ -7,7 +7,7 @@ The project is organized as a lightweight Python package with a simple CLI entry
 ## Execution Flow
 
 1. `src.cli` parses the user command.
-2. `src.data_loader` loads the raw CSV and delegates schema checks to `src.validation`.
+2. `src.data_loader` loads the raw CSV and delegates schema checks to `src.validation`, using the operation's purpose. Training requires a complete target; prediction, anomaly detection, and profiling require only telemetry. All paths reject invalid ranges, infinities, missing timestamps, and ambiguous normalized headers.
 3. For supervised training, `src.preprocessing` normalizes, deduplicates, and sorts rows without imputing missing inputs, then creates the train/test split.
 4. `src.modeling` builds candidate pipelines that impute inputs, add derived features, optionally scale, and classify. Cross-validation fits each pipeline on its fold's training observations only.
 5. `src.train` selects a candidate using training-only cross-validation, refits it on the full training split, and evaluates it on the held-out test split. The independent anomaly path retains its existing batch cleaning and feature engineering.

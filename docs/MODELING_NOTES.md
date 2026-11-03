@@ -48,11 +48,15 @@ The important review point is that validation happens before modeling. This prev
 The validator enforces a contract:
 
 ```text
-dataset columns must include REQUIRED_COLUMNS
+all operations require timestamp and the eight telemetry columns
 numeric telemetry columns must be coercible to numbers
-timestamp must be parseable as datetime
-target must contain at least two classes
+known numeric columns must not contain positive or negative infinity
+telemetry values must satisfy broad physical bounds
+timestamp must be parseable as datetime and non-missing
+training alone requires a complete target with at least two classes
 ```
+
+Prediction and anomaly detection do not need `risk_level` or `failure_risk`; one-row and single-class batches are valid. `failure_risk` is optional even during training. Present label values must be non-negative integer classes, but optional scoring annotations may be missing. Missing measurements are retained for imputation; missing training targets are rejected rather than filled. The Dataset Card lists the exact numeric bounds and explains why proxies have no assumed upper bound. Profiling uses the prediction contract so it can inspect unlabeled incoming data.
 
 This is a basic form of input boundary control. In data systems, model quality depends on the assumption that training and inference inputs follow the same schema. If the schema changes silently, the model can still run but produce meaningless predictions.
 

@@ -24,6 +24,15 @@ Validate the dataset:
 python -m src validate --input data/raw/raw_dataset.csv
 ```
 
+The default checks training input, including a complete `risk_level` target. For unlabeled incoming data, select the intended operation:
+
+```powershell
+python -m src validate --input data/raw/incoming.csv --purpose prediction
+python -m src validate --input data/raw/incoming.csv --purpose anomaly
+```
+
+Prediction, anomaly detection, and profiling select telemetry-only validation automatically. They accept missing labels and single-class batches. Numeric infinities, missing timestamps, and invalid physical ranges are rejected before execution; see the Dataset Card for bounds. `failure_risk` is optional for every operation.
+
 Train and generate artifacts:
 
 ```powershell

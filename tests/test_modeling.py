@@ -38,7 +38,7 @@ def test_pipeline_preserves_training_statistics(missing_telemetry, model_name):
     np.testing.assert_allclose(imputer.statistics_, expected_medians)
 
     incoming = features.iloc[[0, 1]].copy()
-    incoming.loc[incoming.index[1], "humidity_pct"] = 1000
+    incoming.loc[incoming.index[1], "humidity_pct"] = 100
     imputed = imputer.transform(incoming)
     assert imputed.iloc[0]["humidity_pct"] == expected_medians["humidity_pct"]
     assert imputed["pollution_proxy"].eq(0).all()
@@ -108,7 +108,7 @@ def test_saved_pipeline_predictions_are_batch_independent(missing_telemetry, tmp
     joblib.dump(pipeline, model_path)
     reference_probability = None
 
-    for companion_humidity in [20, 1000]:
+    for companion_humidity in [20, 100]:
         # Repeated rows, missing values, and shuffled timestamps must survive scoring.
         incoming = missing_telemetry.iloc[[7, 0, 0, 4]].reset_index(drop=True)
         incoming.loc[0, "humidity_pct"] = companion_humidity
