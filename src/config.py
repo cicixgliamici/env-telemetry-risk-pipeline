@@ -10,6 +10,8 @@ REPORTS_DIR = BASE_DIR / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 
 TARGET_COLUMN = "risk_level"
+# The bundled binary task uses class 1 for elevated risk; other class codes stay valid.
+RISK_LABEL = 1
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
 

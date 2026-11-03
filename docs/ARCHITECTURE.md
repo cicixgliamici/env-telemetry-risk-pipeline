@@ -25,6 +25,7 @@ The project is organized as a lightweight Python package with a simple CLI entry
 - `src/train.py`: supervised model comparison and artifact generation
 - `src/anomaly.py`: unsupervised anomaly detection pipeline
 - `src/evaluate.py`: model metrics and comparable summaries
+- `src/experiment.py`: data fingerprint and versions, paired feature deltas, and reviewer-facing training report
 - `src/visualize.py`: chart generation
 - `src/utils.py`: filesystem, logging, and timestamp helpers
 - `src/cli.py`: operator-facing commands

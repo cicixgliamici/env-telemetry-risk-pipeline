@@ -31,6 +31,8 @@ If the selected model is not `random_forest`, use the model name shown in `data/
 - `docs/MODELING_NOTES.md`: mathematical background and reviewer questions.
 - `docs/MODEL_CARD.md`: intended use, evaluation, limitations, and monitoring.
 - `docs/DATASET_CARD.md`: schema, synthetic data, and leakage notes.
+- `docs/EXPERIMENT_RESULTS.md`: reproducible 1,000-row benchmark, baseline, ablation, and limits.
+- `data/outputs/training_summary.md`: CV table, raw/engineered deltas, dummy gap, and winner-only test metrics.
 - `.github/workflows/ci.yml`: test matrix, package build, synthetic data validation, and container smoke test.
 - `data/outputs/model_metadata.json`: selected model, feature columns, excluded columns, and run config.
 - `data/outputs/data_profile.md`: row count, target balance, missing values, numeric summary, and warnings.
@@ -40,8 +42,10 @@ If the selected model is not `random_forest`, use the model name shown in `data/
 - Validation runs before modeling.
 - `failure_risk` is excluded to avoid leakage.
 - The model comparison is metric-driven.
+- Identical folds compare raw and engineered inputs; the majority-class dummy can win.
+- Macro F1 and class-1 recall expose weaknesses hidden by weighted averages.
 - Cross-validation is reported for more stable review evidence.
-- Batch prediction uses saved metadata feature order.
+- Batch prediction uses the fitted pipeline's own feature order.
 - Synthetic data is deterministic and tested.
 - Docker runs as a non-root user.
 - CI checks lint, tests, package build, synthetic data, and container smoke.
@@ -50,6 +54,8 @@ If the selected model is not `random_forest`, use the model name shown in `data/
 
 - Why is `failure_risk` excluded from features?
 - Why weighted F1 instead of only accuracy?
+- Does feature engineering help every classifier and every metric?
+- Does the selected model beat the majority rule, and does it maximize risk recall?
 - What does cross-validation add beyond one train/test split?
 - How does batch prediction preserve the training feature order?
 - Why is synthetic data useful but not proof of production performance?

@@ -17,6 +17,8 @@ Model selection uses mean weighted F1 from stratified cross-validation on the tr
 
 Each supervised model is saved as a complete scikit-learn `Pipeline`: median imputation, feature engineering, optional standard scaling for logistic regression, and classification. Imputation and scaling are fitted separately inside each training fold and frozen during prediction. The fitted artifact contains its raw feature schema, so new pipeline predictions do not require `model_metadata.json`.
 
+Training compares five configurations on identical folds: both classifier families with raw or engineered features, plus a majority-class `DummyClassifier`. Reports include weighted and macro F1, class-1 risk recall, feature-ablation deltas, and the selected model's improvement over the dummy. A [reproducible 1,000-row synthetic experiment](docs/EXPERIMENT_RESULTS.md) records the measured results and their limits.
+
 ## Project Layout
 
 - `src/`: package code
@@ -175,6 +177,7 @@ docker run --rm env-telemetry-risk-pipeline:local
 - [Model Card](docs/MODEL_CARD.md): intended use, evaluation, limitations, and monitoring notes
 - [Dataset Card](docs/DATASET_CARD.md): schema, synthetic data, validation rules, and leakage notes
 - [Reviewer Checklist](docs/REVIEWER_CHECKLIST.md): commands and review signals to inspect
+- [Experiment Results](docs/EXPERIMENT_RESULTS.md): fixed protocol, dummy baseline, feature ablation, results, and reproduction identity
 
 ## Review Notes
 
@@ -203,7 +206,7 @@ Anomaly detection creates:
 
 ## Next Useful Improvements
 
-- richer per-class evaluation
+- experiments on sourced observational data with defensible risk labels
 - config via environment variables or YAML
 - hyperparameter search within training-only cross-validation
 - linting and formatting automation

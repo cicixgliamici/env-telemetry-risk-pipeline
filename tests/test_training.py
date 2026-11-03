@@ -22,7 +22,7 @@ def test_training_produces_metrics():
     assert "accuracy" in metrics
     assert 0.0 <= metrics["accuracy"] <= 1.0
     assert "confusion_matrix" in metrics
-    assert metrics["selected_model"] in {"random_forest", "logistic_regression"}
+    assert metrics["selected_model"] in build_model_candidates()
     assert "candidate_models" in metrics
     assert "classification_report_dict" in metrics
     assert "cross_validation" in metrics
@@ -34,7 +34,7 @@ def test_training_writes_model_metadata():
     metadata_path = OUTPUT_DIR / "model_metadata.json"
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
 
-    assert metadata["selected_model"] in {"random_forest", "logistic_regression"}
+    assert metadata["selected_model"] in build_model_candidates()
     assert metadata["target_column"] == "risk_level"
     assert "failure_risk" in metadata["excluded_columns"]
     assert "timestamp" in metadata["excluded_columns"]
@@ -54,8 +54,12 @@ def test_training_writes_model_metadata():
 
 
 @pytest.mark.parametrize("flip_test_labels", [False, True])
+@pytest.mark.parametrize(
+    "selected_candidate",
+    ["logistic_regression", "logistic_regression_raw", "random_forest_raw", "dummy_most_frequent"],
+)
 def test_model_selection_uses_only_training_cv(
-    valid_dataset_df, tmp_path, monkeypatch, flip_test_labels
+    valid_dataset_df, tmp_path, monkeypatch, flip_test_labels, selected_candidate
 ):
     input_path = tmp_path / "dataset.csv"
     valid_dataset_df.to_csv(input_path, index=False)
@@ -80,7 +84,9 @@ def test_model_selection_uses_only_training_cv(
             "f1_weighted_mean": score,
             "f1_weighted_std": 0.0,
         }
-        for name, score in [("random_forest", 0.1), ("logistic_regression", 0.9)]
+        for name, score in [
+            (name, 0.9 if name == selected_candidate else 0.1) for name in build_model_candidates()
+        ]
     }
     training_cv = Mock(return_value=comparison)
 
@@ -108,13 +114,13 @@ def test_model_selection_uses_only_training_cv(
     assert len(prediction_calls) == 1
     evaluate_test.assert_called_once()
     pd.testing.assert_series_equal(evaluate_test.call_args.args[0], y_test)
-    _assert_selection_artifacts(metrics, comparison, y_test)
+    _assert_selection_artifacts(metrics, comparison, y_test, selected_candidate)
 
 
-def _assert_selection_artifacts(metrics, comparison, y_test):
+def _assert_selection_artifacts(metrics, comparison, y_test, selected_candidate):
     """Check that saved comparisons and final test metrics stay distinguishable."""
 
-    assert metrics["selected_model"] == "logistic_regression"
+    assert metrics["selected_model"] == selected_candidate
     assert metrics["selection_dataset"] == "training_cross_validation"
     assert metrics["selection_metric"] == "f1_weighted_mean"
     assert metrics["evaluation_dataset"] == "held_out_test"
@@ -128,9 +134,10 @@ def _assert_selection_artifacts(metrics, comparison, y_test):
     expected_metrics = evaluate_predictions(y_test, predictions["y_pred"])
     for metric_name, expected_value in expected_metrics.items():
         assert metrics[metric_name] == expected_value
-    pipeline = joblib.load(training.MODELS_DIR / "logistic_regression_model.pkl")
+    pipeline = joblib.load(training.MODELS_DIR / f"{selected_candidate}_model.pkl")
     assert isinstance(pipeline, Pipeline)
-    assert isinstance(pipeline.named_steps["classifier"], LogisticRegression)
+    expected_classifier = build_model_candidates()[selected_candidate].named_steps["classifier"]
+    assert type(pipeline.named_steps["classifier"]) is type(expected_classifier)
 
 
 def test_cross_validation_rejects_insufficient_training_rows(monkeypatch):

@@ -1,6 +1,6 @@
 import joblib
 import pandas as pd
-from sklearn.metrics import make_scorer, precision_score
+from sklearn.metrics import f1_score, make_scorer, precision_score, recall_score
 from sklearn.model_selection import StratifiedKFold, cross_validate
 
 from src.config import (
@@ -10,11 +10,13 @@ from src.config import (
     PROCESSED_DIR,
     RANDOM_STATE,
     RAW_DATA_PATH,
+    RISK_LABEL,
     TARGET_COLUMN,
     TEST_SIZE,
 )
 from src.data_loader import load_csv
 from src.evaluate import evaluate_predictions
+from src.experiment import build_data_evidence, build_feature_ablation, format_training_summary
 from src.modeling import build_model_candidates
 from src.preprocessing import clean_dataset, split_features_target
 from src.utils import ensure_dir, get_logger, save_json, utc_timestamp, write_text_file
@@ -23,16 +25,17 @@ from src.visualize import plot_confusion_matrix, plot_feature_importance
 LOGGER = get_logger("src.train")
 
 
-def _save_featured_dataset(model, dataset: pd.DataFrame) -> None:
+def _save_featured_dataset(model, dataset: pd.DataFrame) -> list[str]:
     """Export interpretable features using only the selected model's fitted imputer."""
 
     raw_features = dataset[list(model.feature_names_in_)]
-    imputed = model.named_steps["imputer"].transform(raw_features)
-    engineered = model.named_steps["feature_engineering"].transform(imputed)
+    # Pipeline slicing also handles raw-only candidates with a passthrough feature step.
+    engineered = model[:2].transform(raw_features)
     # Keep labels and timestamps in this audit export, outside the model inputs.
     featured = dataset.copy()
     featured[engineered.columns] = engineered
     featured.to_csv(PROCESSED_DIR / "featured_dataset.csv", index=False)
+    return list(engineered.columns)
 
 
 def _cross_validate_candidates(candidates: dict, X: pd.DataFrame, y: pd.Series) -> dict:
@@ -54,7 +57,12 @@ def _cross_validate_candidates(candidates: dict, X: pd.DataFrame, y: pd.Series) 
         "precision_weighted": make_scorer(precision_score, average="weighted", zero_division=0),
         "recall_weighted": "recall_weighted",
         "f1_weighted": "f1_weighted",
+        "f1_macro": make_scorer(f1_score, average="macro", zero_division=0),
     }
+    if RISK_LABEL in y.unique():
+        scoring["recall_risk"] = make_scorer(
+            recall_score, labels=[RISK_LABEL], average="macro", zero_division=0
+        )
     results = {}
     for model_name, model in candidates.items():
         LOGGER.info("Cross-validating candidate model: %s", model_name)
@@ -66,17 +74,14 @@ def _cross_validate_candidates(candidates: dict, X: pd.DataFrame, y: pd.Series) 
             scoring=scoring,
             error_score="raise",
         )
-        results[model_name] = {
-            "folds": folds,
-            "accuracy_mean": float(scores["test_accuracy"].mean()),
-            "accuracy_std": float(scores["test_accuracy"].std()),
-            "precision_weighted_mean": float(scores["test_precision_weighted"].mean()),
-            "precision_weighted_std": float(scores["test_precision_weighted"].std()),
-            "recall_weighted_mean": float(scores["test_recall_weighted"].mean()),
-            "recall_weighted_std": float(scores["test_recall_weighted"].std()),
-            "f1_weighted_mean": float(scores["test_f1_weighted"].mean()),
-            "f1_weighted_std": float(scores["test_f1_weighted"].std()),
-        }
+        results[model_name] = {"folds": folds}
+        for metric in scoring:
+            values = scores[f"test_{metric}"]
+            results[model_name][f"{metric}_mean"] = float(values.mean())
+            results[model_name][f"{metric}_std"] = float(values.std())
+        # A different target vocabulary may have no class 1; its recall is undefined.
+        results[model_name].setdefault("recall_risk_mean", None)
+        results[model_name].setdefault("recall_risk_std", None)
     return results
 
 
@@ -115,7 +120,7 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
     model = candidates[best_model_name]
     LOGGER.info("Fitting selected model on the full training split: %s", best_model_name)
     model.fit(X_train, y_train)
-    _save_featured_dataset(model, cleaned)
+    model_feature_columns = _save_featured_dataset(model, cleaned)
     # Reuse these final predictions for metrics and CSV output to evaluate only once.
     test_predictions = model.predict(X_test)
     metrics = evaluate_predictions(y_test, test_predictions)
@@ -125,6 +130,13 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
     metrics["evaluation_dataset"] = "held_out_test"
     metrics["candidate_models"] = cross_validation
     metrics["cross_validation"] = cross_validation
+    metrics["feature_ablation"] = build_feature_ablation(cross_validation)
+    dummy_score = cross_validation.get("dummy_most_frequent", {}).get("f1_weighted_mean")
+    metrics["dummy_f1_weighted_gap"] = (
+        None
+        if dummy_score is None
+        else cross_validation[best_model_name]["f1_weighted_mean"] - dummy_score
+    )
     metrics["run_timestamp_utc"] = utc_timestamp()
     save_json(metrics, OUTPUT_DIR / "metrics.json")
     # Candidate comparisons contain training CV scores, never candidate test scores.
@@ -152,66 +164,32 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
         "candidate_models": sorted(candidates.keys()),
         "selected_model_params": model.named_steps["classifier"].get_params(),
         "artifact_format": "telemetry_pipeline_v1",
-        "engineered_feature_columns": list(model.named_steps["classifier"].feature_names_in_),
+        "engineered_feature_columns": model_feature_columns,
+        "feature_set": (
+            "raw" if model.named_steps["feature_engineering"] == "passthrough" else "engineered"
+        ),
         "preprocessing": {
             "steps": list(model.named_steps),
             "imputation_strategy": "median",
             "empty_feature_fill_value": 0,
-            "standard_scaling": best_model_name == "logistic_regression",
+            "standard_scaling": model.named_steps["scaler"] != "passthrough",
         },
         "random_state": RANDOM_STATE,
         "test_size": TEST_SIZE,
         "training_rows": int(len(X_train)),
         "test_rows": int(len(X_test)),
         "cross_validation": cross_validation,
+        "risk_label": RISK_LABEL,
+        "data_evidence": build_data_evidence(cleaned),
     }
     save_json(model_metadata, OUTPUT_DIR / "model_metadata.json")
     classifier = model.named_steps["classifier"]
     plot_feature_importance(
-        classifier, classifier.feature_names_in_, FIGURES_DIR / "feature_importance.png"
+        classifier, model_feature_columns, FIGURES_DIR / "feature_importance.png"
     )
     plot_confusion_matrix(metrics["confusion_matrix"], FIGURES_DIR / "confusion_matrix.png")
-    per_class_metrics = metrics["classification_report_dict"]
     write_text_file(
-        "\n".join(
-            [
-                "# Training Run Summary",
-                "",
-                f"- Timestamp (UTC): {metrics['run_timestamp_utc']}",
-                f"- Selected model: {best_model_name}",
-                "- Selection: highest mean weighted F1 in training-only cross-validation",
-                f"- Held-out test accuracy: {metrics['accuracy']:.4f}",
-                f"- Held-out test weighted F1: {metrics['f1_weighted']:.4f}",
-                f"- Training rows: {len(X_train)}",
-                f"- Test rows: {len(X_test)}",
-                "",
-                "## Candidate Models: Training Cross-Validation",
-                "",
-            ]
-            + [
-                (
-                    f"- {name}: folds={values['folds']}, "
-                    f"accuracy={values['accuracy_mean']:.4f} +/- {values['accuracy_std']:.4f}, "
-                    f"f1={values['f1_weighted_mean']:.4f} +/- {values['f1_weighted_std']:.4f}"
-                )
-                for name, values in cross_validation.items()
-            ]
-            + [
-                "",
-                "## Held-Out Test Per-Class Metrics",
-                "",
-            ]
-            + [
-                (
-                    f"- Class {label}: precision={values['precision']:.4f}, "
-                    f"recall={values['recall']:.4f}, f1={values['f1-score']:.4f}, "
-                    f"support={int(values['support'])}"
-                )
-                for label, values in per_class_metrics.items()
-                if isinstance(values, dict)
-                and label not in {"accuracy", "macro avg", "weighted avg"}
-            ]
-        ),
+        format_training_summary(metrics, model_metadata),
         OUTPUT_DIR / "training_summary.md",
     )
     LOGGER.info("Training completed. Selected model: %s", best_model_name)

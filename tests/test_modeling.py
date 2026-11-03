@@ -77,7 +77,9 @@ def test_cross_validation_fits_imputers_on_fold_training_rows(missing_telemetry,
 
     def fit_and_check_scaler(scaler, fold_features, y=None):
         raw_fold = features.loc[fold_features.index]
-        expected = add_engineered_features(raw_fold.fillna(raw_fold.median().fillna(0)))
+        expected = raw_fold.fillna(raw_fold.median().fillna(0))
+        if "humidity_temp_index" in fold_features.columns:
+            expected = add_engineered_features(expected)
         pd.testing.assert_frame_equal(fold_features, expected, check_dtype=False)
         fitted = original_scaler_fit(scaler, fold_features, y)
         observed_scaler_rows.append(tuple(fold_features.index))
@@ -93,7 +95,7 @@ def test_cross_validation_fits_imputers_on_fold_training_rows(missing_telemetry,
         tuple(features.iloc[train].index) for train, _ in splitter.split(features, target)
     ]
     assert observed_rows == expected_rows * len(candidates)
-    assert observed_scaler_rows == expected_rows
+    assert observed_scaler_rows == expected_rows * 2
     assert all(result["folds"] == 3 for result in results.values())
     # Cross-validation must fit clones, leaving the original candidates unfitted.
     assert all(
@@ -124,9 +126,10 @@ def test_saved_pipeline_predictions_are_batch_independent(missing_telemetry, tmp
         )
         expected = pipeline.predict_proba(_raw_features(incoming))[:, 1]
         np.testing.assert_allclose(result["predicted_risk_probability"], expected)
-        assert result["predicted_risk_level"].tolist() == pipeline.predict(
-            _raw_features(incoming)
-        ).tolist()
+        assert (
+            result["predicted_risk_level"].tolist()
+            == pipeline.predict(_raw_features(incoming)).tolist()
+        )
         pd.testing.assert_series_equal(result["humidity_pct"], incoming["humidity_pct"])
         if reference_probability is None:
             reference_probability = result.loc[1, "predicted_risk_probability"]

@@ -237,7 +237,7 @@ This matters because accuracy alone can look good even when a model ignores a mi
 
 ## Model Selection
 
-The pipeline cross-validates both candidates on training observations and selects the best mean weighted F1 score:
+The pipeline cross-validates all five candidate configurations on training observations and selects the best mean weighted F1 score:
 
 ```text
 best_model = argmax_model mean_training_cv_weighted_f1(model)
@@ -246,6 +246,8 @@ best_model = argmax_model mean_training_cv_weighted_f1(model)
 Weighted F1 is chosen because it combines precision and recall while accounting for class support.
 
 This is a modest but important design choice: the project does not hard-code a favorite model. It compares candidate baselines through a consistent metric.
+
+Each model family is now compared with raw telemetry and with eight additional engineered features, using identical folds and estimator settings. A majority-class `DummyClassifier` adds a reference that ignores the measurements and can itself be selected. Feature deltas are computed as engineered minus raw mean CV scores. They do not use the held-out test results, and a positive delta for one family or metric does not imply a universal improvement. [Experiment Results](EXPERIMENT_RESULTS.md) records one fixed synthetic experiment.
 
 ## Evaluation Metrics
 
@@ -279,6 +281,8 @@ weighted_metric = sum_c support_c * metric_c / sum_c support_c
 ```
 
 This is useful when class counts are uneven.
+
+Macro F1 instead averages class F1 scores with equal class weights, helping expose minority-class failure. `recall_risk` reports recall for the configured class `1`, and `risk_support` counts its observed test cases. If class 1 is absent, risk recall is unavailable (`null` in JSON, `N/A` in reports). Other class codes do not acquire risk meaning automatically. Selection still uses weighted F1, so models with higher risk recall may lose that comparison; an operational threshold or false-negative objective requires separate justification.
 
 ## Anomaly Detection
 

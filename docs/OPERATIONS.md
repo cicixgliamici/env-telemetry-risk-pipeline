@@ -108,7 +108,9 @@ docker run --rm env-telemetry-risk-pipeline:local
 - `models/*.pkl`
 - `reports/figures/*.png`
 
-For supervised training, `cleaned_dataset.csv` retains missing telemetry values. `featured_dataset.csv` contains unscaled engineered features computed with the winning pipeline's training-fitted imputer, plus the original labels and timestamps for audit. This export is generated after fitting and does not participate in model selection.
+For supervised training, `cleaned_dataset.csv` retains missing telemetry values. `featured_dataset.csv` contains unscaled model features computed with the winning pipeline's training-fitted imputer, plus the original labels and timestamps for audit. For raw-only or dummy winners it contains raw imputed inputs; otherwise it also includes engineered features. This export is generated after fitting and does not participate in model selection.
+
+`training_summary.md` compares five candidates on identical training folds, reports feature-ablation deltas and the dummy gap, and separates winner-only test metrics. `model_metadata.json` records the actual `feature_set`, normalized data fingerprint, class counts, and environment versions. The fingerprint identifies the table, not its original source. See `docs/EXPERIMENT_RESULTS.md` for a fixed synthetic reproduction protocol and observed results.
 
 ## Production Hardening Ideas
 

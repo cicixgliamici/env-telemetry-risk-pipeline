@@ -115,6 +115,8 @@ These are broad plausibility checks, not sensor specifications or alert threshol
 - Domain thresholds are heuristic.
 - No drift benchmark dataset yet.
 
+Training records a SHA-256 of the validated, deduplicated, timestamp-sorted table serialized as UTF-8 CSV, its class counts, and execution versions in `model_metadata.json`. This helps reproduce a run without claiming that a file is real or externally verified. The measured 1,000-row synthetic experiment and the information needed for a future observational dataset are documented in [Experiment Results](EXPERIMENT_RESULTS.md).
+
 ## Recommended Improvements
 
 - Refine broad bounds with documented sensor specifications and domain input.
