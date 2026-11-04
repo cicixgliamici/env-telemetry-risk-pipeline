@@ -5,7 +5,7 @@ import joblib
 import pandas as pd
 from sklearn.pipeline import Pipeline
 
-from src.config import OUTPUT_DIR, RAW_DATA_PATH
+from src.config import OUTPUT_DIR, RAW_DATA_PATH, RISK_LABEL
 from src.data_loader import load_csv
 from src.feature_engineering import add_engineered_features
 from src.preprocessing import clean_dataset
@@ -71,10 +71,13 @@ def run_batch_prediction(
     predictions = model.predict(X)
 
     result["predicted_risk_level"] = predictions
-    if hasattr(model, "predict_proba"):
+    # Probability columns follow classes_, including for non-binary target vocabularies.
+    classes = list(getattr(model, "classes_", []))
+    # Omit undefined risk probabilities when the risk class or class ordering is unavailable.
+    if hasattr(model, "predict_proba") and RISK_LABEL in classes:
         probabilities = model.predict_proba(X)
-        if probabilities.shape[1] > 1:
-            result["predicted_risk_probability"] = probabilities[:, 1]
+        risk_class_index = classes.index(RISK_LABEL)
+        result["predicted_risk_probability"] = probabilities[:, risk_class_index]
 
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)

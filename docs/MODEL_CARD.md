@@ -50,6 +50,12 @@ Each cross-validation fold learns its own median imputations. Logistic regressio
 
 The supervised model predicts `risk_level`.
 
+Batch predictions include `predicted_risk_probability` only when the model supports
+`predict_proba`, exposes `classes_`, and includes `RISK_LABEL = 1`. The probability
+column is selected by class label, including for multiclass and single-class models.
+If class 1 or its column mapping is unavailable, the probability column is omitted
+rather than assigning another class's probability. These probabilities are not calibrated.
+
 Generated training artifacts include:
 
 - `data/outputs/metrics.json`

@@ -144,6 +144,11 @@ Run batch prediction after training:
 python -m src predict --input data/raw/raw_dataset.csv --model models/random_forest_model.pkl
 ```
 
+`predicted_risk_probability` is the model probability for class `1` (`RISK_LABEL`),
+located using the saved model's `classes_` order, including for multiclass models.
+The column is omitted when class `1`, probability prediction, or class ordering is
+unavailable; another class is never substituted. These probabilities are not calibrated.
+
 Run anomaly detection:
 
 ```bash
