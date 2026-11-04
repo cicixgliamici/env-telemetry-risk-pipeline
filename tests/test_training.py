@@ -74,7 +74,7 @@ def test_model_selection_uses_only_training_cv(
     monkeypatch.setattr(
         training,
         "split_features_target",
-        lambda *args: (X_train, X_test, y_train, y_test),
+        lambda *args, **kwargs: (X_train, X_test, y_train, y_test),
     )
     comparison = {
         name: {

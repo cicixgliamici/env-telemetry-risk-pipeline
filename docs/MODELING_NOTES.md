@@ -114,11 +114,11 @@ A good reviewer question is: "Why not use `failure_risk`?" The answer is that th
 The pipeline uses a held-out split:
 
 ```text
-training set: used for stratified cross-validation and fitting the selected model
+training set: used for cross-validation and fitting the selected model
 test set: used once to estimate the selected model's generalization
 ```
 
-The split is stratified by target class. Stratification preserves the approximate class distribution in train and test sets, which matters when classes are imbalanced or the dataset is small.
+By default, the split is random and stratified by target class. Stratification preserves the approximate class distribution in train and test sets, which matters when classes are imbalanced or the dataset is small.
 
 Conceptually:
 
@@ -128,7 +128,16 @@ P_train(y = c) ~= P_test(y = c)
 
 This makes evaluation less sensitive to unlucky splits.
 
-Candidate selection uses the highest mean weighted F1 across training-only folds. The selected candidate is refitted on the full training split before final evaluation. No candidate test scores enter the selection decision. At least two observations per training class are required; insufficient data raises an error rather than reusing the test set. The split remains random and stratified, so this experiment does not establish performance on future timestamps.
+Candidate selection uses the highest mean weighted F1 across training-only folds. The selected candidate is refitted on the full training split before final evaluation. No candidate test scores enter the selection decision. Stratified CV requires at least two observations per training class; insufficient data raises an error rather than reusing the test set. The default random split and existing synthetic benchmark do not establish performance on future timestamps.
+
+For chronological evaluation, `--split-strategy temporal` reserves the latest
+timestamp groups for the test set and uses expanding-window CV inside the earlier
+training period. Equal timestamps stay in the same partition. An optional
+`--temporal-gap` excludes whole timestamp groups before each validation window and
+before the test window. Each historical training fold must contain at least two
+classes. All learned preprocessing remains inside each fold. Exact membership and
+time boundaries are saved in `evaluation_protocol.json`; see
+[Temporal Evaluation](TEMPORAL_EVALUATION.md) for fraction/gap units and limits.
 
 ## Fitted Preprocessing
 
@@ -431,7 +440,7 @@ The dataset is too small for strong performance claims. The current value is in 
 
 ## Useful Next Steps
 
-- Assess whether chronological validation fits the intended prediction task.
+- Design site/sensor-grouped validation when real identifiers and the generalization task are defined.
 - Persist model metadata next to serialized model files.
 - Extend the existing run configuration with configurable model and split settings.
 - Add domain range validation for telemetry values.

@@ -1,9 +1,10 @@
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 from sklearn.metrics import f1_score, make_scorer, precision_score, recall_score
-from sklearn.model_selection import StratifiedKFold, cross_validate
+from sklearn.model_selection import cross_validate
 
 from src.artifacts import RunArtifacts, artifact_run
 from src.config import (
@@ -19,6 +20,11 @@ from src.evaluate import evaluate_predictions
 from src.experiment import build_data_evidence, build_feature_ablation, format_training_summary
 from src.modeling import build_model_candidates
 from src.preprocessing import clean_dataset, split_features_target
+from src.splitting import (
+    build_evaluation_protocol,
+    build_training_folds,
+    validate_split_settings,
+)
 from src.utils import get_logger, save_json, utc_timestamp, write_text_file
 from src.visualize import plot_confusion_matrix, plot_feature_importance
 
@@ -38,19 +44,20 @@ def _save_featured_dataset(model, dataset: pd.DataFrame, output_path: Path) -> l
     return list(engineered.columns)
 
 
-def _cross_validate_candidates(candidates: dict, X: pd.DataFrame, y: pd.Series) -> dict:
-    """Run compact stratified cross-validation when each class has enough rows."""
+def _risk_recall(y_true, y_pred) -> float:
+    """Missing risk observations make fold recall undefined, rather than measured zero."""
 
-    min_class_count = int(y.value_counts().min())
-    folds = min(3, min_class_count)
-    if folds < 2:
-        # Never fall back to choosing a model on the held-out test set.
-        raise ValueError(
-            "Model selection requires at least two training rows per class "
-            "for stratified cross-validation. Provide more labeled observations."
-        )
+    if not np.any(np.asarray(y_true) == RISK_LABEL):
+        return np.nan
+    return recall_score(y_true, y_pred, labels=[RISK_LABEL], average="macro", zero_division=0)
 
-    cv = StratifiedKFold(n_splits=folds, shuffle=True, random_state=RANDOM_STATE)
+
+def _cross_validate_candidates(
+    candidates: dict, X: pd.DataFrame, y: pd.Series, *, cv_splits=None
+) -> dict:
+    """Evaluate identical precomputed folds, keeping the holdout outside model selection."""
+
+    cv = build_training_folds(y) if cv_splits is None else cv_splits
     scoring = {
         "accuracy": "accuracy",
         # Small validation folds can leave a class without predicted observations.
@@ -60,9 +67,7 @@ def _cross_validate_candidates(candidates: dict, X: pd.DataFrame, y: pd.Series) 
         "f1_macro": make_scorer(f1_score, average="macro", zero_division=0),
     }
     if RISK_LABEL in y.unique():
-        scoring["recall_risk"] = make_scorer(
-            recall_score, labels=[RISK_LABEL], average="macro", zero_division=0
-        )
+        scoring["recall_risk"] = make_scorer(_risk_recall)
     results = {}
     for model_name, model in candidates.items():
         LOGGER.info("Cross-validating candidate model: %s", model_name)
@@ -74,30 +79,44 @@ def _cross_validate_candidates(candidates: dict, X: pd.DataFrame, y: pd.Series) 
             scoring=scoring,
             error_score="raise",
         )
-        results[model_name] = {"folds": folds}
+        results[model_name] = {"folds": len(cv)}
         for metric in scoring:
             values = scores[f"test_{metric}"]
-            results[model_name][f"{metric}_mean"] = float(values.mean())
-            results[model_name][f"{metric}_std"] = float(values.std())
+            observed = values[np.isfinite(values)]
+            results[model_name][f"{metric}_mean"] = (
+                float(observed.mean()) if len(observed) else None
+            )
+            results[model_name][f"{metric}_std"] = float(observed.std()) if len(observed) else None
+            # Persist support for aggregates so unavailable fold recall is visible to reviewers.
+            results[model_name][f"{metric}_observed_folds"] = int(len(observed))
         # A different target vocabulary may have no class 1; its recall is undefined.
         results[model_name].setdefault("recall_risk_mean", None)
         results[model_name].setdefault("recall_risk_std", None)
+        results[model_name].setdefault("recall_risk_observed_folds", 0)
     return results
 
 
-
-def run_training(raw_data_path=RAW_DATA_PATH, *, output_dir: str | Path = RUNS_DIR) -> dict:
+def run_training(
+    raw_data_path=RAW_DATA_PATH,
+    *,
+    output_dir: str | Path = RUNS_DIR,
+    split_strategy: str = "stratified_random",
+    test_size: float = TEST_SIZE,
+    temporal_gap: int = 0,
+) -> dict:
     """Run the end-to-end supervised training pipeline and save artifacts."""
 
+    validate_split_settings(split_strategy, test_size, temporal_gap)
     candidates = build_model_candidates()
     config = {
         "raw_data_path": str(Path(raw_data_path).resolve()),
         "random_state": RANDOM_STATE,
-        "test_size": TEST_SIZE,
+        "test_size": test_size,
         "target_column": TARGET_COLUMN,
         "risk_label": RISK_LABEL,
         "selection_metric": "f1_weighted_mean",
-        "split_strategy": "stratified_random",
+        "split_strategy": split_strategy,
+        "temporal_gap": temporal_gap,
         "max_cv_folds": 3,
         "candidate_models": {
             name: {
@@ -110,10 +129,10 @@ def run_training(raw_data_path=RAW_DATA_PATH, *, output_dir: str | Path = RUNS_D
         },
     }
     with artifact_run(output_dir, "train", config) as artifacts:
-        return _run_training(raw_data_path, artifacts, candidates)
+        return _run_training(raw_data_path, artifacts, candidates, config)
 
 
-def _run_training(raw_data_path, artifacts: RunArtifacts, candidates: dict) -> dict:
+def _run_training(raw_data_path, artifacts: RunArtifacts, candidates: dict, config: dict) -> dict:
     """Fit and evaluate within the directories assigned to this execution."""
 
     LOGGER.info("Loading dataset from %s", raw_data_path)
@@ -126,8 +145,10 @@ def _run_training(raw_data_path, artifacts: RunArtifacts, candidates: dict) -> d
     X_train, X_test, y_train, y_test = split_features_target(
         cleaned,
         TARGET_COLUMN,
-        TEST_SIZE,
+        config["test_size"],
         RANDOM_STATE,
+        split_strategy=config["split_strategy"],
+        temporal_gap=config["temporal_gap"],
     )
     LOGGER.info(
         "Training split prepared with %s train rows and %s test rows",
@@ -135,8 +156,24 @@ def _run_training(raw_data_path, artifacts: RunArtifacts, candidates: dict) -> d
         len(X_test),
     )
 
+    cv_splits = build_training_folds(
+        y_train,
+        strategy=config["split_strategy"],
+        timestamps=cleaned.loc[X_train.index, "timestamp"],
+        temporal_gap=config["temporal_gap"],
+    )
+    protocol = build_evaluation_protocol(
+        cleaned,
+        X_train,
+        X_test,
+        cv_splits,
+        config["split_strategy"],
+        config["test_size"],
+        config["temporal_gap"],
+    )
+    save_json(protocol, artifacts.outputs / "evaluation_protocol.json")
     # Keep test observations outside every fold and every model selection decision.
-    cross_validation = _cross_validate_candidates(candidates, X_train, y_train)
+    cross_validation = _cross_validate_candidates(candidates, X_train, y_train, cv_splits=cv_splits)
     best_model_name = max(
         cross_validation,
         key=lambda name: cross_validation[name]["f1_weighted_mean"],
@@ -154,6 +191,9 @@ def _run_training(raw_data_path, artifacts: RunArtifacts, candidates: dict) -> d
     metrics["selection_metric"] = "f1_weighted_mean"
     metrics["selection_dataset"] = "training_cross_validation"
     metrics["evaluation_dataset"] = "held_out_test"
+    metrics["split_strategy"] = config["split_strategy"]
+    metrics["cv_strategy"] = protocol["cv_strategy"]
+    metrics["temporal_gap"] = config["temporal_gap"]
     metrics["candidate_models"] = cross_validation
     metrics["cross_validation"] = cross_validation
     metrics["feature_ablation"] = build_feature_ablation(cross_validation)
@@ -185,6 +225,10 @@ def _run_training(raw_data_path, artifacts: RunArtifacts, candidates: dict) -> d
         "selection_metric": metrics["selection_metric"],
         "selection_dataset": metrics["selection_dataset"],
         "evaluation_dataset": metrics["evaluation_dataset"],
+        "split_strategy": metrics["split_strategy"],
+        "cv_strategy": metrics["cv_strategy"],
+        "temporal_gap": config["temporal_gap"],
+        "evaluation_protocol": str(artifacts.outputs / "evaluation_protocol.json"),
         "model_artifact": metrics["model_artifact"],
         "raw_data_path": str(raw_data_path),
         "target_column": TARGET_COLUMN,
@@ -204,7 +248,7 @@ def _run_training(raw_data_path, artifacts: RunArtifacts, candidates: dict) -> d
             "standard_scaling": model.named_steps["scaler"] != "passthrough",
         },
         "random_state": RANDOM_STATE,
-        "test_size": TEST_SIZE,
+        "test_size": config["test_size"],
         "training_rows": int(len(X_train)),
         "test_rows": int(len(X_test)),
         "cross_validation": cross_validation,
@@ -218,7 +262,7 @@ def _run_training(raw_data_path, artifacts: RunArtifacts, candidates: dict) -> d
     )
     plot_confusion_matrix(metrics["confusion_matrix"], artifacts.figures / "confusion_matrix.png")
     write_text_file(
-        format_training_summary(metrics, model_metadata),
+        format_training_summary(metrics, model_metadata, protocol),
         artifacts.outputs / "training_summary.md",
     )
     LOGGER.info("Training completed. Selected model: %s", best_model_name)

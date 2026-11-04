@@ -46,7 +46,7 @@ def test_cli_train_prints_metrics(monkeypatch, capsys):
     monkeypatch.setattr(
         src.train,
         "run_training",
-        lambda raw_data_path, output_dir: {"accuracy": 0.75, "input": raw_data_path},
+        lambda raw_data_path, output_dir, **kwargs: {"accuracy": 0.75, "input": raw_data_path},
     )
 
     exit_code = main(["train", "--input", "data/raw/raw_dataset.csv"])

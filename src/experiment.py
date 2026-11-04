@@ -64,6 +64,10 @@ def _comparison_lines(comparison: dict) -> list[str]:
             f"+/- {_score(values['f1_weighted_std'])} | {_score(values.get('f1_macro_mean'))} "
             f"| {_score(values.get('recall_risk_mean'))} |"
         )
+    lines.extend([
+        "", "Risk recall excludes validation folds without class 1; observed fold counts "
+        "are recorded in model_comparison.json. Fold variation is not a confidence interval.",
+    ])
     return lines
 
 
@@ -85,7 +89,42 @@ def _ablation_lines(ablation: dict) -> list[str]:
     return lines
 
 
-def format_training_summary(metrics: dict, metadata: dict) -> str:
+def _protocol_lines(protocol: dict) -> list[str]:
+    """Expose time boundaries next to scores so the evaluation claim is reviewable."""
+
+    lines = [
+        "## Evaluation Protocol",
+        "",
+        f"- Holdout strategy: {protocol['split_strategy']}",
+        f"- Cross-validation: {protocol['cv_strategy']}",
+        f"- Requested test fraction: {protocol['requested_test_size']} "
+        f"of {protocol['test_size_unit']}",
+        f"- Exclusion gap: {protocol['temporal_gap']} distinct timestamps",
+    ]
+    for name in ["training", "test"]:
+        partition = protocol[name]
+        lines.append(
+            f"- Holdout {name}: {partition['rows']} rows; "
+            f"{partition['timestamp_min']} to {partition['timestamp_max']}"
+        )
+    lines.extend(
+        [
+            "",
+            "| Fold | Training rows | Validation rows | Latest training | Earliest validation |",
+            "| --- | ---: | ---: | --- | --- |",
+        ]
+    )
+    for fold in protocol["folds"]:
+        train, validation = fold["training"], fold["validation"]
+        lines.append(
+            f"| {fold['fold']} | {train['rows']} | {validation['rows']} | "
+            f"{train['timestamp_max']} | {validation['timestamp_min']} |"
+        )
+    lines.extend(["", "Exact row membership is saved in evaluation_protocol.json."])
+    return lines
+
+
+def format_training_summary(metrics: dict, metadata: dict, protocol: dict) -> str:
     """Keep test results, selection evidence, and provenance visibly distinct."""
 
     lines = [
@@ -103,6 +142,8 @@ def format_training_summary(metrics: dict, metadata: dict) -> str:
         f"- Test risk support: {metrics['risk_support']}",
         f"- Training rows: {metadata['training_rows']}; test rows: {metadata['test_rows']}",
         f"- Selected CV weighted F1 minus dummy: {_score(metrics['dummy_f1_weighted_gap'])}",
+        "",
+        *_protocol_lines(protocol),
         "",
         *_comparison_lines(metrics["cross_validation"]),
         "",

@@ -99,7 +99,7 @@ The loader validates:
 
 These are broad plausibility checks, not sensor specifications or alert thresholds. Proxy units are unspecified, so the generator's upper limit of 100 is not imposed on real inputs. Missing telemetry values remain missing after validation so the fitted supervised pipeline can impute them using training statistics. The independent anomaly path retains its batch imputation behavior.
 
-`load_csv()` and `validate_dataset_schema()` default to `purpose="training"`; callers can select `"prediction"` or `"anomaly"`. The standalone CLI exposes the same contract with `validate --purpose prediction` or `validate --purpose anomaly`. Each modeling command selects its contract automatically. Class counts needed for stratified train/test splitting and cross-validation are checked later by the training pipeline.
+`load_csv()` and `validate_dataset_schema()` default to `purpose="training"`; callers can select `"prediction"` or `"anomaly"`. The standalone CLI exposes the same contract with `validate --purpose prediction` or `validate --purpose anomaly`. Each modeling command selects its contract automatically. Class counts needed for stratified splitting, or historical class diversity needed for temporal CV, are checked later by the training pipeline.
 
 ## Data Leakage Notes
 

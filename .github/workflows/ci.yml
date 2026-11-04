@@ -82,6 +82,9 @@ jobs:
       - name: Train synthetic review model
         run: python -m src train --input data/raw/synthetic_dataset.csv
 
+      - name: Train with chronological evaluation
+        run: python -m src train --input data/raw/synthetic_dataset.csv --split-strategy temporal --temporal-gap 1
+
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:

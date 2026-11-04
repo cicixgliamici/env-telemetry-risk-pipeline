@@ -10,9 +10,9 @@ The supervised training pipeline compares:
 - Random Forest Classifier with raw and engineered features
 - a majority-class `DummyClassifier` reference
 
-The selected supervised model is chosen by mean weighted F1 from stratified cross-validation on the training split only. The winner is then fitted on the full training split and evaluated once on the held-out test split. Test scores do not influence model selection.
+The selected supervised model is chosen by mean weighted F1 from cross-validation on the training split only. The default uses stratified random splitting and stratified CV. The optional temporal strategy uses the latest timestamps as holdout and expanding historical CV windows, keeping equal timestamps together. The winner is then fitted on the full training split and evaluated once on the held-out test split. Test scores do not influence model selection.
 
-Cross-validation uses up to three identical folds for all candidates, limited by the smallest training class. If any training class has fewer than two observations, training stops with a clear error rather than selecting a model using test scores. Ties keep the first declared candidate for reproducibility. Unsuffixed family names retain engineered features; `_raw` variants bypass feature engineering. The dummy is a selectable candidate rather than a model the other candidates are assumed to beat.
+Stratified cross-validation uses up to three identical folds for all candidates, limited by the smallest training class. If any training class has fewer than two observations, training stops with a clear error rather than selecting a model using test scores. Temporal CV uses up to three expanding windows and requires at least two classes in every historical training window. An optional timestamp-group gap applies to both CV and holdout. Ties keep the first declared candidate for reproducibility. Unsuffixed family names retain engineered features; `_raw` variants bypass feature engineering. The dummy is a selectable candidate rather than a model the other candidates are assumed to beat.
 
 ## Intended Use
 
@@ -81,7 +81,7 @@ The pipeline reports:
 - class-1 risk recall and its test support; `null`/`N/A` when no class-1 observations exist
 - confusion matrix
 - per-class classification report
-- compact stratified cross-validation summary
+- stratified or chronological cross-validation summary and exact evaluation protocol
 - raw-versus-engineered feature deltas on identical training folds
 - selected mean CV weighted F1 minus the dummy baseline
 
@@ -113,7 +113,7 @@ The synthetic dataset is useful for testing and demonstrations, but it does not 
 - The model artifact is local and does not yet use a registry.
 - Cross-validation improves review confidence but does not replace representative data.
 - Zero-filling a feature absent throughout a training fold preserves the schema but does not establish that zero is a physically meaningful value.
-- Random stratified splitting does not measure future-time generalization; chronological evaluation requires a separate design and enough historical data.
+- Random stratified splitting does not measure future-time generalization. Optional temporal evaluation requires enough historical class diversity and does not isolate sites or account automatically for delayed labels and overlapping label horizons; see [Temporal Evaluation](TEMPORAL_EVALUATION.md).
 
 ## Recommended Monitoring
 

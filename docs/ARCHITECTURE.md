@@ -20,6 +20,7 @@ The project is organized as a lightweight Python package with a simple CLI entry
 - `src/validation.py`: file-level and schema-level input validation
 - `src/data_loader.py`: CSV loading after validation
 - `src/preprocessing.py`: cleaning and train/test split preparation
+- `src/splitting.py`: stratified or temporal partitions, expanding windows, and auditable evaluation membership
 - `src/feature_engineering.py`: derived telemetry features
 - `src/modeling.py`: supervised pipelines with fitted imputation and optional standard scaling
 - `src/predict.py`: batch inference using the saved pipeline and its embedded input schema

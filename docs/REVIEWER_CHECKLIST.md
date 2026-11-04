@@ -37,6 +37,7 @@ Each training/anomaly invocation prints its `run_id` and absolute `run_dir`;
 - `runs/<run_id>/outputs/training_summary.md`: CV table, raw/engineered deltas, dummy gap, and winner-only test metrics.
 - `.github/workflows/ci.yml`: test matrix, package build, synthetic data validation, and container smoke test.
 - `runs/<run_id>/outputs/model_metadata.json`: selected model, feature columns, excluded columns, and run identity.
+- `runs/<run_id>/outputs/evaluation_protocol.json`: exact holdout/CV row membership, class counts, timestamps, and exclusion gaps.
 - `runs/<run_id>/run.json`, `config.json`, `environment.json`, and `requirements.txt`: status, settings, and environment snapshot.
 - `data/outputs/data_profile.md`: row count, target balance, missing values, numeric summary, and warnings.
 
@@ -49,6 +50,7 @@ Each training/anomaly invocation prints its `run_id` and absolute `run_dir`;
 - Macro F1 and class-1 recall expose weaknesses hidden by weighted averages.
 - Cross-validation is reported for more stable review evidence.
 - Batch prediction uses the fitted pipeline's own feature order.
+- Temporal evaluation keeps whole timestamp groups together and trains each fold strictly before its validation window.
 - Synthetic data is deterministic and tested.
 - Docker runs as a non-root user.
 - CI checks lint, tests, package build, synthetic data, and container smoke.

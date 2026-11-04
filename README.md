@@ -13,7 +13,7 @@ Small ML pipeline for environmental telemetry data with a clearer structure, dat
 - runs anomaly detection with `IsolationForest`
 - saves metrics, predictions, artifacts, and plots
 
-Model selection uses mean weighted F1 from stratified cross-validation on the training split only. The selected model is fitted on the full training split, then evaluated once on the held-out test split. `model_comparison.json` contains candidate cross-validation means and standard deviations; final test metrics belong only to the winner. Training requires at least two observations per class in the training split.
+Model selection uses mean weighted F1 from cross-validation on the training split only. The default protocol uses random stratified holdout and stratified folds; `--split-strategy temporal` uses the latest timestamps as holdout and expanding historical training folds. The selected model is fitted on the full training split, then evaluated once on the held-out test split. `model_comparison.json` contains candidate cross-validation means and standard deviations; final test metrics belong only to the winner. Stratified CV requires at least two observations per training class; temporal CV requires at least two classes in every historical training window.
 
 Each supervised model is saved as a complete scikit-learn `Pipeline`: median imputation, feature engineering, optional standard scaling for logistic regression, and classification. Imputation and scaling are fitted separately inside each training fold and frozen during prediction. The fitted artifact contains its raw feature schema, so new pipeline predictions do not require `model_metadata.json`.
 
@@ -133,6 +133,21 @@ Train the baseline model:
 python -m src train --input data/raw/raw_dataset.csv
 ```
 
+Evaluate on future timestamps using a larger synthetic review dataset:
+
+```bash
+python scripts/generate_synthetic_data.py --output data/raw/synthetic_dataset.csv --rows 1000 --seed 42
+python -m src train --input data/raw/synthetic_dataset.csv --split-strategy temporal --test-size 0.2 --temporal-gap 1
+```
+
+Temporal evaluation reserves the latest fraction of distinct timestamps, keeps
+simultaneous observations together, and uses the same expanding historical folds
+for every candidate. `--temporal-gap` excludes timestamp groups before each CV
+validation window and before the final test window. The bundled 12-row example
+has insufficient class diversity in early history for this protocol. See
+[Temporal Evaluation](docs/TEMPORAL_EVALUATION.md) for boundaries, recorded evidence,
+and limitations. Synthetic results remain implementation checks.
+
 Create a data profile:
 
 ```bash
@@ -184,6 +199,7 @@ docker run --rm env-telemetry-risk-pipeline:local
 - [Dataset Card](docs/DATASET_CARD.md): schema, synthetic data, validation rules, and leakage notes
 - [Reviewer Checklist](docs/REVIEWER_CHECKLIST.md): commands and review signals to inspect
 - [Experiment Results](docs/EXPERIMENT_RESULTS.md): fixed protocol, dummy baseline, feature ablation, results, and reproduction identity
+- [Temporal Evaluation](docs/TEMPORAL_EVALUATION.md): chronological holdout, expanding folds, timestamp groups, and exclusion gaps
 
 ## Review Notes
 
@@ -210,6 +226,7 @@ Inside each training run:
 
 - `processed/cleaned_dataset.csv` and `processed/featured_dataset.csv`
 - `outputs/metrics.json`, `outputs/model_comparison.json`, and `outputs/model_metadata.json`
+- `outputs/evaluation_protocol.json`: holdout and CV row membership, class counts, time ranges, and gaps
 - `outputs/predictions.csv` and `outputs/training_summary.md`
 - `models/<selected_model>_model.pkl`
 - `figures/confusion_matrix.png` and, for tree models, `figures/feature_importance.png`

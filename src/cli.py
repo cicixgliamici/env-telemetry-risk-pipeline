@@ -1,8 +1,9 @@
 import argparse
 import json
 
-from src.config import RAW_DATA_PATH, RUNS_DIR
+from src.config import RAW_DATA_PATH, RUNS_DIR, TEST_SIZE
 from src.data_loader import load_csv
+from src.splitting import SPLIT_STRATEGIES
 from src.validation import DataValidationError, ValidationPurpose
 
 
@@ -30,6 +31,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--input",
         default=str(RAW_DATA_PATH),
         help="Path to the raw CSV dataset",
+    )
+    train_parser.add_argument(
+        "--split-strategy",
+        choices=SPLIT_STRATEGIES,
+        default="stratified_random",
+        help="Use stratified random evaluation or chronological holdout and expanding CV",
+    )
+    train_parser.add_argument(
+        "--test-size",
+        type=float,
+        default=TEST_SIZE,
+        help="Test fraction: rows for random splitting, distinct timestamps for temporal splitting",
+    )
+    train_parser.add_argument(
+        "--temporal-gap",
+        type=int,
+        default=0,
+        help="Timestamp groups excluded before temporal test and CV validation windows",
     )
 
     profile_parser = subparsers.add_parser("profile", help="Create a data quality profile")
@@ -112,7 +131,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "train":
             from src.train import run_training
 
-            metrics = run_training(raw_data_path=args.input, output_dir=args.output_dir)
+            metrics = run_training(
+                raw_data_path=args.input,
+                output_dir=args.output_dir,
+                split_strategy=args.split_strategy,
+                test_size=args.test_size,
+                temporal_gap=args.temporal_gap,
+            )
             print(json.dumps(metrics, indent=2))
             return 0
 

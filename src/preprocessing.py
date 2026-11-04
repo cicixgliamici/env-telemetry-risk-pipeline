@@ -1,6 +1,8 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+from src.splitting import temporal_holdout, validate_split_settings
+
 
 def normalize_column_names(df: pd.DataFrame) -> pd.DataFrame:
     """Normalize incoming column names to the internal snake_case format."""
@@ -27,7 +29,7 @@ def clean_dataset(
     if "timestamp" in out.columns:
         out["timestamp"] = pd.to_datetime(out["timestamp"])
         if not preserve_rows:
-            out = out.sort_values("timestamp").reset_index(drop=True)
+            out = out.sort_values("timestamp", kind="stable").reset_index(drop=True)
     return out
 
 
@@ -36,9 +38,22 @@ def split_features_target(
     target_column: str,
     test_size: float,
     random_state: int,
+    *,
+    split_strategy: str = "stratified_random",
+    temporal_gap: int = 0,
 ):
     """Split the dataset into features and target while excluding leakage columns."""
 
+    validate_split_settings(split_strategy, test_size, temporal_gap)
+    if split_strategy == "temporal":
+        train, test = temporal_holdout(df, test_size, temporal_gap)
+        excluded = [target_column, "failure_risk", "timestamp"]
+        return (
+            train.drop(columns=excluded, errors="ignore"),
+            test.drop(columns=excluded, errors="ignore"),
+            train[target_column],
+            test[target_column],
+        )
     X = df.drop(columns=[target_column, "failure_risk", "timestamp"], errors="ignore")
     y = df[target_column]
     return train_test_split(

@@ -39,6 +39,17 @@ Train and generate artifacts:
 python -m src train --input data/raw/raw_dataset.csv --output-dir runs
 ```
 
+For chronological evaluation on a sufficiently long labeled history:
+
+```powershell
+python -m src train --input data/raw/synthetic_dataset.csv --split-strategy temporal --test-size 0.2 --temporal-gap 1 --output-dir runs
+```
+
+Generate the synthetic input first with the command below if needed. The tiny
+bundled sample has insufficient early class diversity for temporal CV. Test
+fraction and gap count whole timestamp groups in temporal mode; see
+[Temporal Evaluation](TEMPORAL_EVALUATION.md) for the exact protocol and limitations.
+
 Run anomaly detection:
 
 ```powershell
@@ -107,6 +118,7 @@ the absolute `run_dir` returned by the command:
 - `<run>/outputs/metrics.json` (training)
 - `<run>/outputs/model_comparison.json` (training)
 - `<run>/outputs/model_metadata.json` (training)
+- `<run>/outputs/evaluation_protocol.json`: exact holdout/CV membership and temporal boundaries
 - `<run>/outputs/predictions.csv` (training)
 - `<run>/outputs/training_summary.md` (training)
 - `<run>/outputs/anomalies.csv` (anomaly)
