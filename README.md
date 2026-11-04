@@ -24,10 +24,8 @@ Training compares five configurations on identical folds: both classifier famili
 - `src/`: package code
 - `tests/`: pytest suite
 - `data/raw/`: source CSV data
-- `data/processed/`: cleaned and enriched datasets
-- `data/outputs/`: metrics, predictions, and anomaly outputs
-- `models/`: serialized models
-- `reports/figures/`: generated charts
+- `runs/<run_id>/`: configuration, environment, processed data, models, metrics, and figures
+- `data/outputs/`: default standalone profiling and batch prediction outputs
 - `notebooks/`: exploratory notebooks
 - `scripts/`: lightweight helper entrypoints
 - `Dockerfile`: minimal runtime image for deployment smoke tests
@@ -96,7 +94,7 @@ python scripts/generate_synthetic_data.py --output data/raw/synthetic_dataset.cs
 python -m src validate --input data/raw/synthetic_dataset.csv
 python -m src profile --input data/raw/synthetic_dataset.csv
 python -m src train --input data/raw/raw_dataset.csv
-python -m src predict --input data/raw/raw_dataset.csv --model models/random_forest_model.pkl
+python -m src predict --input data/raw/raw_dataset.csv --model "runs/<run_id>/models/<selected_model>_model.pkl"
 python -m src anomaly --input data/raw/raw_dataset.csv --contamination 0.05
 ```
 
@@ -109,6 +107,9 @@ Expected high-level behavior:
 - anomaly detection writes row-level anomaly labels, a summary JSON, a plot, and a detector file
 - synthetic data generation creates a reproducible larger review dataset when the bundled sample is too small
 - generated runtime artifacts are ignored by git
+
+Replace the prediction example's placeholders with the `model_artifact` path printed
+by training. Training and anomaly detection print their `run_id` and absolute `run_dir`.
 
 ## CLI Usage
 
@@ -141,7 +142,7 @@ python -m src profile --input data/raw/raw_dataset.csv
 Run batch prediction after training:
 
 ```bash
-python -m src predict --input data/raw/raw_dataset.csv --model models/random_forest_model.pkl
+python -m src predict --input data/raw/raw_dataset.csv --model "runs/<run_id>/models/<selected_model>_model.pkl"
 ```
 
 `predicted_risk_probability` is the model probability for class `1` (`RISK_LABEL`),
@@ -190,24 +191,40 @@ This is intentionally a small, auditable baseline rather than a highly tuned mod
 
 ## Generated Outputs
 
-Training creates:
+Training and anomaly detection each create a unique folder under `runs/` relative
+to the working directory. Use `--output-dir` to change the parent directory:
 
-- `data/outputs/metrics.json`
-- `data/outputs/model_comparison.json`
-- `data/outputs/model_metadata.json`
-- `data/outputs/data_profile.json`
-- `data/outputs/data_profile.md`
-- `data/outputs/predictions.csv`
-- `data/outputs/batch_predictions.csv`
-- `data/outputs/training_summary.md`
+```bash
+python -m src train --input data/raw/raw_dataset.csv --output-dir runs
+python -m src anomaly --input data/raw/raw_dataset.csv --output-dir runs
+```
+
+Every run contains `run.json` (identity, timestamps, and status), `config.json`,
+`environment.json` (Python, platform, installed package versions), and
+`requirements.txt` with exact installed package versions. This is an environment
+snapshot, including unrelated installed packages, rather than a portable lockfile.
+Reproduction requires the same Python/platform, source revision, and input data;
+install this repository separately because its local package is excluded from the pins.
+
+Inside each training run:
+
+- `processed/cleaned_dataset.csv` and `processed/featured_dataset.csv`
+- `outputs/metrics.json`, `outputs/model_comparison.json`, and `outputs/model_metadata.json`
+- `outputs/predictions.csv` and `outputs/training_summary.md`
 - `models/<selected_model>_model.pkl`
+- `figures/confusion_matrix.png` and, for tree models, `figures/feature_importance.png`
 
-Anomaly detection creates:
+Inside each anomaly run:
 
-- `data/outputs/anomalies.csv`
-- `data/outputs/anomaly_summary.json`
+- `outputs/anomalies.csv` and `outputs/anomaly_summary.json`
 - `models/anomaly_detector.pkl`
-- `reports/figures/anomaly_scatter.png`
+- `figures/anomaly_scatter.png`
+
+Runs never reuse an existing directory. Failed runs retain partial artifacts with
+status `failed`; interrupted processes may leave status `running`. Existing artifacts
+in the old fixed directories are retained, but new training and anomaly runs use the
+run folders. Profiling and batch prediction remain separate commands with explicit
+output options; their default outputs stay in `data/outputs/`.
 
 ## Next Useful Improvements
 

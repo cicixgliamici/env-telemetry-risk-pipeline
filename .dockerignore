@@ -15,6 +15,7 @@ dist/
 data/processed/
 data/outputs/
 models/*.pkl
+runs/
 reports/figures/*.png
 notebooks/
 pytest-cache-files-*/

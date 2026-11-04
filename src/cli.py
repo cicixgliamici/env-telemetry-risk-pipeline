@@ -1,7 +1,7 @@
 import argparse
 import json
 
-from src.config import RAW_DATA_PATH
+from src.config import RAW_DATA_PATH, RUNS_DIR
 from src.data_loader import load_csv
 from src.validation import DataValidationError, ValidationPurpose
 
@@ -78,6 +78,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.03,
         help="Expected contamination ratio for IsolationForest",
     )
+    for run_parser in [train_parser, anomaly_parser]:
+        run_parser.add_argument(
+            "--output-dir",
+            default=str(RUNS_DIR),
+            help="Parent directory for a new, unique run folder (default: runs)",
+        )
     return parser
 
 
@@ -106,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "train":
             from src.train import run_training
 
-            metrics = run_training(raw_data_path=args.input)
+            metrics = run_training(raw_data_path=args.input, output_dir=args.output_dir)
             print(json.dumps(metrics, indent=2))
             return 0
 
@@ -150,10 +156,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "anomaly":
             from src.anomaly import detect_anomalies
 
-            df = detect_anomalies(contamination=args.contamination, raw_data_path=args.input)
+            df = detect_anomalies(
+                contamination=args.contamination,
+                raw_data_path=args.input,
+                output_dir=args.output_dir,
+            )
             print(
                 json.dumps(
                     {
+                        **df.attrs,
                         "rows": int(len(df)),
                         "anomalies": int(df["is_anomaly"].sum()),
                     },

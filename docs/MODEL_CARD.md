@@ -58,13 +58,16 @@ rather than assigning another class's probability. These probabilities are not c
 
 Generated training artifacts include:
 
-- `data/outputs/metrics.json`
-- `data/outputs/model_comparison.json`
-- `data/outputs/model_metadata.json`
-- `data/outputs/predictions.csv`
-- `data/outputs/batch_predictions.csv`
-- `data/outputs/training_summary.md`
-- `models/<selected_model>_model.pkl`
+- `runs/<run_id>/outputs/metrics.json`
+- `runs/<run_id>/outputs/model_comparison.json`
+- `runs/<run_id>/outputs/model_metadata.json`
+- `runs/<run_id>/outputs/predictions.csv`
+- `runs/<run_id>/outputs/training_summary.md`
+- `runs/<run_id>/models/<selected_model>_model.pkl`
+
+The run root is configurable with `--output-dir`. Each run also records its effective
+configuration, Python/platform, installed package versions, and completion status.
+Batch prediction is a separate command and defaults to `data/outputs/batch_predictions.csv`.
 
 ## Evaluation
 

@@ -46,7 +46,7 @@ def test_cli_train_prints_metrics(monkeypatch, capsys):
     monkeypatch.setattr(
         src.train,
         "run_training",
-        lambda raw_data_path: {"accuracy": 0.75, "input": raw_data_path},
+        lambda raw_data_path, output_dir: {"accuracy": 0.75, "input": raw_data_path},
     )
 
     exit_code = main(["train", "--input", "data/raw/raw_dataset.csv"])
@@ -65,7 +65,7 @@ def test_cli_anomaly_prints_summary(monkeypatch, capsys, valid_dataset_df):
     monkeypatch.setattr(
         src.anomaly,
         "detect_anomalies",
-        lambda contamination, raw_data_path: out,
+        lambda contamination, raw_data_path, output_dir: out,
     )
 
     exit_code = main(["anomaly", "--input", "data/raw/raw_dataset.csv", "--contamination", "0.2"])

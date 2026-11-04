@@ -16,6 +16,7 @@ The project is organized as a lightweight Python package with a simple CLI entry
 ## Module Responsibilities
 
 - `src/config.py`: project paths and core constants
+- `src/artifacts.py`: exclusive run directories, lifecycle manifest, configuration, and environment snapshot
 - `src/validation.py`: file-level and schema-level input validation
 - `src/data_loader.py`: CSV loading after validation
 - `src/preprocessing.py`: cleaning and train/test split preparation
@@ -33,7 +34,8 @@ The project is organized as a lightweight Python package with a simple CLI entry
 ## Production Notes
 
 - Validation fails early before model execution.
-- Outputs are written to predictable project folders.
+- Training and anomaly artifacts are written to unique folders under the configurable run root.
+- Each run keeps its configuration, environment snapshot, and lifecycle status next to its artifacts.
 - Supervised `.pkl` artifacts contain the entire fitted pipeline. New artifacts do not require an external metadata file for prediction; older bare classifiers retain a compatibility path with their original preprocessing behavior.
 - Prediction preserves input row order and duplicates and never fits the new pipeline on scoring data.
 - Logging is intentionally simple and console-first.

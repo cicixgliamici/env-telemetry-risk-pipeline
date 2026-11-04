@@ -433,7 +433,7 @@ The dataset is too small for strong performance claims. The current value is in 
 
 - Assess whether chronological validation fits the intended prediction task.
 - Persist model metadata next to serialized model files.
-- Add configurable output directories for cleaner test isolation and scheduled runs.
+- Extend the existing run configuration with configurable model and split settings.
 - Add domain range validation for telemetry values.
 - Add per-class evaluation summaries to the generated Markdown report.
 - Add calibration curves if predicted probabilities become part of the product.

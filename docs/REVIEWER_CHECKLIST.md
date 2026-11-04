@@ -19,12 +19,14 @@ python scripts/generate_synthetic_data.py --output data/raw/synthetic_dataset.cs
 python -m src validate --input data/raw/synthetic_dataset.csv
 python -m src profile --input data/raw/synthetic_dataset.csv
 python -m src train --input data/raw/synthetic_dataset.csv
-python -m src predict --input data/raw/synthetic_dataset.csv --model models/random_forest_model.pkl
+python -m src predict --input data/raw/synthetic_dataset.csv --model "runs/<run_id>/models/<selected_model>_model.pkl"
 python -m src anomaly --input data/raw/synthetic_dataset.csv --contamination 0.05
 python -m build --no-isolation
 ```
 
-If the selected model is not `random_forest`, use the model name shown in `data/outputs/metrics.json`.
+Replace prediction placeholders with the exact `model_artifact` path printed by training.
+Each training/anomaly invocation prints its `run_id` and absolute `run_dir`;
+`--output-dir` changes the parent directory without reusing an existing run.
 
 ## What To Inspect
 
@@ -32,9 +34,10 @@ If the selected model is not `random_forest`, use the model name shown in `data/
 - `docs/MODEL_CARD.md`: intended use, evaluation, limitations, and monitoring.
 - `docs/DATASET_CARD.md`: schema, synthetic data, and leakage notes.
 - `docs/EXPERIMENT_RESULTS.md`: reproducible 1,000-row benchmark, baseline, ablation, and limits.
-- `data/outputs/training_summary.md`: CV table, raw/engineered deltas, dummy gap, and winner-only test metrics.
+- `runs/<run_id>/outputs/training_summary.md`: CV table, raw/engineered deltas, dummy gap, and winner-only test metrics.
 - `.github/workflows/ci.yml`: test matrix, package build, synthetic data validation, and container smoke test.
-- `data/outputs/model_metadata.json`: selected model, feature columns, excluded columns, and run config.
+- `runs/<run_id>/outputs/model_metadata.json`: selected model, feature columns, excluded columns, and run identity.
+- `runs/<run_id>/run.json`, `config.json`, `environment.json`, and `requirements.txt`: status, settings, and environment snapshot.
 - `data/outputs/data_profile.md`: row count, target balance, missing values, numeric summary, and warnings.
 
 ## Review Signals

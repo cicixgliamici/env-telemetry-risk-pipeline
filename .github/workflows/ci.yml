@@ -88,6 +88,13 @@ jobs:
           name: python-package
           path: dist/*
 
+      - name: Upload synthetic training run
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-training-run
+          path: runs/
+          if-no-files-found: error
+
   container-smoke:
     runs-on: ubuntu-latest
     needs: test

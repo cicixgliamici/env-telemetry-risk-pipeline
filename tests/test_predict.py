@@ -177,11 +177,13 @@ def test_run_batch_prediction_writes_output(valid_dataset_df, tmp_path: Path):
     assert "predicted_risk_level" in pd.read_csv(output_path).columns
 
 
-def test_batch_prediction_can_use_training_metadata():
-    metrics = run_training()
-    model_path = Path("models") / f"{metrics['selected_model']}_model.pkl"
+def test_batch_prediction_can_use_training_metadata(tmp_path):
+    metrics = run_training(output_dir=tmp_path / "runs")
+    model_path = Path(metrics["model_artifact"])
 
-    result = run_batch_prediction(model_path=model_path)
+    result = run_batch_prediction(
+        model_path=model_path, output_path=tmp_path / "batch_predictions.csv"
+    )
 
     assert "predicted_risk_level" in result.columns
     assert len(result) > 0

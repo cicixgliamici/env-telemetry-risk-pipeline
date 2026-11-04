@@ -4,11 +4,13 @@ from pathlib import Path
 
 os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "matplotlib"))
 
-import matplotlib
-import pandas as pd
+# Configure writable Matplotlib storage before its first import in installed environments.
+import matplotlib  # noqa: E402
+import pandas as pd  # noqa: E402
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+# Select the headless backend before pyplot initializes it.
+import matplotlib.pyplot as plt  # noqa: E402
 
 
 def plot_feature_importance(model, feature_names, output_path: str | Path) -> None:

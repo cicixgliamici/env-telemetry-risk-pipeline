@@ -1,16 +1,16 @@
+from pathlib import Path
+
 import joblib
 import pandas as pd
 from sklearn.metrics import f1_score, make_scorer, precision_score, recall_score
 from sklearn.model_selection import StratifiedKFold, cross_validate
 
+from src.artifacts import RunArtifacts, artifact_run
 from src.config import (
-    FIGURES_DIR,
-    MODELS_DIR,
-    OUTPUT_DIR,
-    PROCESSED_DIR,
     RANDOM_STATE,
     RAW_DATA_PATH,
     RISK_LABEL,
+    RUNS_DIR,
     TARGET_COLUMN,
     TEST_SIZE,
 )
@@ -19,13 +19,13 @@ from src.evaluate import evaluate_predictions
 from src.experiment import build_data_evidence, build_feature_ablation, format_training_summary
 from src.modeling import build_model_candidates
 from src.preprocessing import clean_dataset, split_features_target
-from src.utils import ensure_dir, get_logger, save_json, utc_timestamp, write_text_file
+from src.utils import get_logger, save_json, utc_timestamp, write_text_file
 from src.visualize import plot_confusion_matrix, plot_feature_importance
 
 LOGGER = get_logger("src.train")
 
 
-def _save_featured_dataset(model, dataset: pd.DataFrame) -> list[str]:
+def _save_featured_dataset(model, dataset: pd.DataFrame, output_path: Path) -> list[str]:
     """Export interpretable features using only the selected model's fitted imputer."""
 
     raw_features = dataset[list(model.feature_names_in_)]
@@ -34,7 +34,7 @@ def _save_featured_dataset(model, dataset: pd.DataFrame) -> list[str]:
     # Keep labels and timestamps in this audit export, outside the model inputs.
     featured = dataset.copy()
     featured[engineered.columns] = engineered
-    featured.to_csv(PROCESSED_DIR / "featured_dataset.csv", index=False)
+    featured.to_csv(output_path, index=False)
     return list(engineered.columns)
 
 
@@ -85,18 +85,43 @@ def _cross_validate_candidates(candidates: dict, X: pd.DataFrame, y: pd.Series) 
     return results
 
 
-def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
+
+def run_training(raw_data_path=RAW_DATA_PATH, *, output_dir: str | Path = RUNS_DIR) -> dict:
     """Run the end-to-end supervised training pipeline and save artifacts."""
 
-    for path in [PROCESSED_DIR, OUTPUT_DIR, MODELS_DIR, FIGURES_DIR]:
-        ensure_dir(path)
+    candidates = build_model_candidates()
+    config = {
+        "raw_data_path": str(Path(raw_data_path).resolve()),
+        "random_state": RANDOM_STATE,
+        "test_size": TEST_SIZE,
+        "target_column": TARGET_COLUMN,
+        "risk_label": RISK_LABEL,
+        "selection_metric": "f1_weighted_mean",
+        "split_strategy": "stratified_random",
+        "max_cv_folds": 3,
+        "candidate_models": {
+            name: {
+                "classifier": type(model.named_steps["classifier"]).__name__,
+                "classifier_params": model.named_steps["classifier"].get_params(),
+                "engineer_features": model.named_steps["feature_engineering"] != "passthrough",
+                "scale_features": model.named_steps["scaler"] != "passthrough",
+            }
+            for name, model in candidates.items()
+        },
+    }
+    with artifact_run(output_dir, "train", config) as artifacts:
+        return _run_training(raw_data_path, artifacts, candidates)
+
+
+def _run_training(raw_data_path, artifacts: RunArtifacts, candidates: dict) -> dict:
+    """Fit and evaluate within the directories assigned to this execution."""
 
     LOGGER.info("Loading dataset from %s", raw_data_path)
     df = load_csv(raw_data_path, purpose="training")
     # Split before any statistics are learned; CV clones and fits the entire pipeline.
     cleaned = clean_dataset(df, impute_numeric=False)
     LOGGER.info("Cleaned dataset with %s rows", len(cleaned))
-    cleaned.to_csv(PROCESSED_DIR / "cleaned_dataset.csv", index=False)
+    cleaned.to_csv(artifacts.processed / "cleaned_dataset.csv", index=False)
 
     X_train, X_test, y_train, y_test = split_features_target(
         cleaned,
@@ -110,7 +135,6 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
         len(X_test),
     )
 
-    candidates = build_model_candidates()
     # Keep test observations outside every fold and every model selection decision.
     cross_validation = _cross_validate_candidates(candidates, X_train, y_train)
     best_model_name = max(
@@ -120,7 +144,9 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
     model = candidates[best_model_name]
     LOGGER.info("Fitting selected model on the full training split: %s", best_model_name)
     model.fit(X_train, y_train)
-    model_feature_columns = _save_featured_dataset(model, cleaned)
+    model_feature_columns = _save_featured_dataset(
+        model, cleaned, artifacts.processed / "featured_dataset.csv"
+    )
     # Reuse these final predictions for metrics and CSV output to evaluate only once.
     test_predictions = model.predict(X_test)
     metrics = evaluate_predictions(y_test, test_predictions)
@@ -138,25 +164,28 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
         else cross_validation[best_model_name]["f1_weighted_mean"] - dummy_score
     )
     metrics["run_timestamp_utc"] = utc_timestamp()
-    save_json(metrics, OUTPUT_DIR / "metrics.json")
+    metrics.update(artifacts.identity())
+    model_filename = f"{best_model_name}_model.pkl"
+    metrics["model_artifact"] = str(artifacts.models / model_filename)
+    save_json(metrics, artifacts.outputs / "metrics.json")
     # Candidate comparisons contain training CV scores, never candidate test scores.
-    save_json(cross_validation, OUTPUT_DIR / "model_comparison.json")
+    save_json(cross_validation, artifacts.outputs / "model_comparison.json")
     pd.DataFrame(
         {
             "y_true": y_test.reset_index(drop=True),
             "y_pred": pd.Series(test_predictions),
         }
-    ).to_csv(OUTPUT_DIR / "predictions.csv", index=False)
+    ).to_csv(artifacts.outputs / "predictions.csv", index=False)
 
-    model_filename = f"{best_model_name}_model.pkl"
-    joblib.dump(model, MODELS_DIR / model_filename)
+    joblib.dump(model, artifacts.models / model_filename)
     model_metadata = {
+        **artifacts.identity(),
         "run_timestamp_utc": metrics["run_timestamp_utc"],
         "selected_model": best_model_name,
         "selection_metric": metrics["selection_metric"],
         "selection_dataset": metrics["selection_dataset"],
         "evaluation_dataset": metrics["evaluation_dataset"],
-        "model_artifact": str(MODELS_DIR / model_filename),
+        "model_artifact": metrics["model_artifact"],
         "raw_data_path": str(raw_data_path),
         "target_column": TARGET_COLUMN,
         "excluded_columns": [TARGET_COLUMN, "failure_risk", "timestamp"],
@@ -182,15 +211,15 @@ def run_training(raw_data_path=RAW_DATA_PATH) -> dict:
         "risk_label": RISK_LABEL,
         "data_evidence": build_data_evidence(cleaned),
     }
-    save_json(model_metadata, OUTPUT_DIR / "model_metadata.json")
+    save_json(model_metadata, artifacts.outputs / "model_metadata.json")
     classifier = model.named_steps["classifier"]
     plot_feature_importance(
-        classifier, model_feature_columns, FIGURES_DIR / "feature_importance.png"
+        classifier, model_feature_columns, artifacts.figures / "feature_importance.png"
     )
-    plot_confusion_matrix(metrics["confusion_matrix"], FIGURES_DIR / "confusion_matrix.png")
+    plot_confusion_matrix(metrics["confusion_matrix"], artifacts.figures / "confusion_matrix.png")
     write_text_file(
         format_training_summary(metrics, model_metadata),
-        OUTPUT_DIR / "training_summary.md",
+        artifacts.outputs / "training_summary.md",
     )
     LOGGER.info("Training completed. Selected model: %s", best_model_name)
     return metrics

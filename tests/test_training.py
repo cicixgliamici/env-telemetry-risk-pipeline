@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from unittest.mock import Mock
 
 import joblib
@@ -9,7 +10,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 
 import src.train as training
-from src.config import OUTPUT_DIR
 from src.data_loader import load_csv
 from src.evaluate import evaluate_predictions
 from src.modeling import build_model_candidates
@@ -17,8 +17,8 @@ from src.preprocessing import clean_dataset, split_features_target
 from src.train import run_training
 
 
-def test_training_produces_metrics():
-    metrics = run_training()
+def test_training_produces_metrics(tmp_path):
+    metrics = run_training(output_dir=tmp_path)
     assert "accuracy" in metrics
     assert 0.0 <= metrics["accuracy"] <= 1.0
     assert "confusion_matrix" in metrics
@@ -28,10 +28,10 @@ def test_training_produces_metrics():
     assert "cross_validation" in metrics
 
 
-def test_training_writes_model_metadata():
-    run_training()
+def test_training_writes_model_metadata(tmp_path):
+    metrics = run_training(output_dir=tmp_path)
 
-    metadata_path = OUTPUT_DIR / "model_metadata.json"
+    metadata_path = Path(metrics["run_dir"]) / "outputs" / "model_metadata.json"
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
 
     assert metadata["selected_model"] in build_model_candidates()
@@ -63,8 +63,6 @@ def test_model_selection_uses_only_training_cv(
 ):
     input_path = tmp_path / "dataset.csv"
     valid_dataset_df.to_csv(input_path, index=False)
-    for directory_name in ["PROCESSED_DIR", "OUTPUT_DIR", "MODELS_DIR", "FIGURES_DIR"]:
-        monkeypatch.setattr(training, directory_name, tmp_path / directory_name.lower())
 
     cleaned = clean_dataset(valid_dataset_df, impute_numeric=False)
     X_train, X_test, y_train, y_test = split_features_target(
@@ -74,7 +72,9 @@ def test_model_selection_uses_only_training_cv(
         # Changing held-out labels must never change which candidate is selected.
         y_test = 1 - y_test
     monkeypatch.setattr(
-        training, "split_features_target", lambda *args: (X_train, X_test, y_train, y_test)
+        training,
+        "split_features_target",
+        lambda *args: (X_train, X_test, y_train, y_test),
     )
     comparison = {
         name: {
@@ -103,7 +103,7 @@ def test_model_selection_uses_only_training_cv(
     monkeypatch.setattr(Pipeline, "predict", predict_once)
     monkeypatch.setattr(training, "evaluate_predictions", evaluate_test)
 
-    metrics = run_training(input_path)
+    metrics = run_training(input_path, output_dir=tmp_path / "runs")
 
     training_cv.assert_called_once()
     candidates, features, target = training_cv.call_args.args
@@ -125,16 +125,17 @@ def _assert_selection_artifacts(metrics, comparison, y_test, selected_candidate)
     assert metrics["selection_metric"] == "f1_weighted_mean"
     assert metrics["evaluation_dataset"] == "held_out_test"
     assert metrics["candidate_models"] == comparison
+    run_dir = Path(metrics["run_dir"])
     saved_comparison = json.loads(
-        (training.OUTPUT_DIR / "model_comparison.json").read_text(encoding="utf-8")
+        (run_dir / "outputs" / "model_comparison.json").read_text(encoding="utf-8")
     )
     assert saved_comparison == comparison
-    predictions = pd.read_csv(training.OUTPUT_DIR / "predictions.csv")
+    predictions = pd.read_csv(run_dir / "outputs" / "predictions.csv")
     assert predictions["y_true"].tolist() == y_test.tolist()
     expected_metrics = evaluate_predictions(y_test, predictions["y_pred"])
     for metric_name, expected_value in expected_metrics.items():
         assert metrics[metric_name] == expected_value
-    pipeline = joblib.load(training.MODELS_DIR / f"{selected_candidate}_model.pkl")
+    pipeline = joblib.load(metrics["model_artifact"])
     assert isinstance(pipeline, Pipeline)
     expected_classifier = build_model_candidates()[selected_candidate].named_steps["classifier"]
     assert type(pipeline.named_steps["classifier"]) is type(expected_classifier)
@@ -154,8 +155,6 @@ def test_cross_validation_rejects_insufficient_training_rows(monkeypatch):
 
 
 def test_training_imputation_ignores_held_out_values(valid_dataset_df, tmp_path, monkeypatch):
-    for directory_name in ["PROCESSED_DIR", "OUTPUT_DIR", "MODELS_DIR", "FIGURES_DIR"]:
-        monkeypatch.setattr(training, directory_name, tmp_path / directory_name.lower())
     dataset = valid_dataset_df.copy()
     X_train, X_test, _, _ = split_features_target(
         dataset, training.TARGET_COLUMN, training.TEST_SIZE, training.RANDOM_STATE
@@ -172,14 +171,15 @@ def test_training_imputation_ignores_held_out_values(valid_dataset_df, tmp_path,
         training, "build_model_candidates", lambda: {"logistic_regression": candidate}
     )
 
-    run_training(input_path)
+    metrics = run_training(input_path, output_dir=tmp_path / "runs")
+    run_dir = Path(metrics["run_dir"])
 
-    pipeline = joblib.load(training.MODELS_DIR / "logistic_regression_model.pkl")
+    pipeline = joblib.load(metrics["model_artifact"])
     humidity_index = pipeline.feature_names_in_.tolist().index("humidity_pct")
     assert pipeline.named_steps["imputer"].statistics_[humidity_index] == expected_median
-    cleaned = pd.read_csv(training.PROCESSED_DIR / "cleaned_dataset.csv")
+    cleaned = pd.read_csv(run_dir / "processed" / "cleaned_dataset.csv")
     assert cleaned["humidity_pct"].isna().sum() == 1
-    featured = pd.read_csv(training.PROCESSED_DIR / "featured_dataset.csv")
+    featured = pd.read_csv(run_dir / "processed" / "featured_dataset.csv")
     assert featured.loc[X_train.index[0], "humidity_pct"] == expected_median
     assert featured.loc[X_train.index[0], "humidity_temp_index"] == pytest.approx(
         expected_median * dataset.loc[X_train.index[0], "temperature_c"] / 100

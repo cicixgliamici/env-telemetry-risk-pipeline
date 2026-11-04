@@ -92,6 +92,8 @@ def format_training_summary(metrics: dict, metadata: dict) -> str:
         "# Training Run Summary",
         "",
         f"- Timestamp (UTC): {metrics['run_timestamp_utc']}",
+        f"- Run ID: {metrics['run_id']}",
+        f"- Artifacts: {metrics['run_dir']}",
         f"- Selected model: {metrics['selected_model']}",
         "- Selection: highest mean weighted F1 in training-only cross-validation",
         f"- Held-out test accuracy: {_score(metrics['accuracy'])}",

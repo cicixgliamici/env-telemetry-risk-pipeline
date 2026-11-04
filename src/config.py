@@ -8,6 +8,8 @@ OUTPUT_DIR = DATA_DIR / "outputs"
 MODELS_DIR = BASE_DIR / "models"
 REPORTS_DIR = BASE_DIR / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
+# Resolve the run root from the caller's working directory, including installed CLI usage.
+RUNS_DIR = Path("runs")
 
 TARGET_COLUMN = "risk_level"
 # The bundled binary task uses class 1 for elevated risk; other class codes stay valid.

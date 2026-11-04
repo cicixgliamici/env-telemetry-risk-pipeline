@@ -36,7 +36,7 @@ Prediction, anomaly detection, and profiling select telemetry-only validation au
 Train and generate artifacts:
 
 ```powershell
-python -m src train --input data/raw/raw_dataset.csv
+python -m src train --input data/raw/raw_dataset.csv --output-dir runs
 ```
 
 Run anomaly detection:
@@ -60,10 +60,11 @@ python -m src profile --input data/raw/raw_dataset.csv
 Run batch prediction after training:
 
 ```powershell
-python -m src predict --input data/raw/raw_dataset.csv --model models/random_forest_model.pkl
+python -m src predict --input data/raw/raw_dataset.csv --model "runs/<run_id>/models/<selected_model>_model.pkl"
 ```
 
-Use the selected model filename reported by training. New artifacts contain the complete fitted preprocessing and classifier pipeline and infer their input schema from the artifact. `--metadata` is only used for older bare classifiers. Retrain old models to obtain training-fitted preprocessing; the compatibility path retains batch-dependent preprocessing for those old artifacts.
+Use the `model_artifact` path printed by training instead of the placeholders.
+Training also prints the absolute `run_dir` and unique `run_id`. New artifacts contain the complete fitted preprocessing and classifier pipeline and infer their input schema from the artifact. `--metadata` is only used for older bare classifiers. Retrain old models to obtain training-fitted preprocessing; the compatibility path retains batch-dependent preprocessing for those old artifacts.
 
 Run lint and security-oriented static checks:
 
@@ -93,20 +94,45 @@ docker run --rm env-telemetry-risk-pipeline:local
 
 ## Artifacts
 
-- `data/processed/cleaned_dataset.csv`
-- `data/processed/featured_dataset.csv`
-- `data/outputs/metrics.json`
-- `data/outputs/model_comparison.json`
-- `data/outputs/model_metadata.json`
+Training and anomaly detection create distinct folders under `--output-dir`
+(default: `runs/`, relative to the working directory). Paths below use `<run>` for
+the absolute `run_dir` returned by the command:
+
+- `<run>/run.json`: operation, identity, start/end timestamps, and status
+- `<run>/config.json`: input path and effective execution settings
+- `<run>/environment.json`: Python/platform and installed package versions
+- `<run>/requirements.txt`: exact version snapshot of the installed environment
+- `<run>/processed/cleaned_dataset.csv` (training)
+- `<run>/processed/featured_dataset.csv` (training)
+- `<run>/outputs/metrics.json` (training)
+- `<run>/outputs/model_comparison.json` (training)
+- `<run>/outputs/model_metadata.json` (training)
+- `<run>/outputs/predictions.csv` (training)
+- `<run>/outputs/training_summary.md` (training)
+- `<run>/outputs/anomalies.csv` (anomaly)
+- `<run>/outputs/anomaly_summary.json` (anomaly)
+- `<run>/models/*.pkl`
+- `<run>/figures/*.png`
+
+Standalone commands retain these defaults, configurable via `profile --output-dir`
+and `predict --output`:
+
 - `data/outputs/data_profile.json`
 - `data/outputs/data_profile.md`
-- `data/outputs/predictions.csv`
 - `data/outputs/batch_predictions.csv`
-- `data/outputs/training_summary.md`
-- `data/outputs/anomalies.csv`
-- `data/outputs/anomaly_summary.json`
-- `models/*.pkl`
-- `reports/figures/*.png`
+
+Each new run gets a separate directory, including repeated or concurrent executions.
+`run.json` moves from `running` to `completed` only after all artifacts are written.
+Exceptions leave status `failed` and retain partial artifacts for diagnosis. A process
+interrupted outside Python exception handling may leave status `running`.
+Previous fixed-directory artifacts are not migrated or deleted.
+
+To reproduce an environment, use the recorded Python/platform in a clean virtual
+environment, install `<run>/requirements.txt`, then install the same source revision
+with `pip install --no-deps -e .` and rerun the command using the recorded configuration
+and identical input data. The snapshot includes all installed distributions except
+this local project; it is not a cross-platform lockfile and does not archive wheels,
+source code, or data. Prefer running experiments in a dedicated virtual environment.
 
 For supervised training, `cleaned_dataset.csv` retains missing telemetry values. `featured_dataset.csv` contains unscaled model features computed with the winning pipeline's training-fitted imputer, plus the original labels and timestamps for audit. For raw-only or dummy winners it contains raw imputed inputs; otherwise it also includes engineered features. This export is generated after fitting and does not participate in model selection.
 

@@ -1,6 +1,5 @@
 import pytest
 
-import src.anomaly as anomaly
 from src.anomaly import detect_anomalies
 
 
@@ -9,8 +8,8 @@ def test_detect_anomalies_rejects_invalid_contamination():
         detect_anomalies(contamination=0)
 
 
-def test_detect_anomalies_returns_expected_columns():
-    out = detect_anomalies(contamination=0.2)
+def test_detect_anomalies_returns_expected_columns(tmp_path):
+    out = detect_anomalies(contamination=0.2, output_dir=tmp_path)
 
     assert "anomaly_score" in out.columns
     assert "is_anomaly" in out.columns
@@ -19,17 +18,17 @@ def test_detect_anomalies_returns_expected_columns():
 
 @pytest.mark.parametrize("include_labels", [False, True])
 def test_anomaly_detection_accepts_unlabeled_and_single_class_batches(
-    valid_dataset_df, tmp_path, monkeypatch, include_labels
+    valid_dataset_df, tmp_path, include_labels
 ):
     dataset = valid_dataset_df.iloc[:4].copy()
     if not include_labels:
         dataset = dataset.drop(columns=["risk_level", "failure_risk"])
     input_path = tmp_path / "incoming.csv"
     dataset.to_csv(input_path, index=False)
-    for name in ["PROCESSED_DIR", "OUTPUT_DIR", "MODELS_DIR", "FIGURES_DIR"]:
-        monkeypatch.setattr(anomaly, name, tmp_path / name.lower())
 
-    result = detect_anomalies(contamination=0.25, raw_data_path=input_path)
+    result = detect_anomalies(
+        contamination=0.25, raw_data_path=input_path, output_dir=tmp_path / "runs"
+    )
 
     assert len(result) == len(dataset)
     assert result["anomaly_score"].notna().all()
