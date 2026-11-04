@@ -76,12 +76,14 @@ def _save_environment(run_dir: Path) -> None:
 
 
 @contextmanager
-def artifact_run(output_dir: str | Path, operation: str, config: dict):
+def artifact_run(output_dir: str | Path, operation: str, config: dict, *, compact: bool = False):
     """Create an exclusive run directory and record success or failure explicitly."""
 
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     # UUIDs avoid collisions between concurrent executions, even with identical clocks.
-    run_id = f"{operation}-{timestamp}-{uuid4().hex}"
+    # Nested review runs omit the redundant timestamp to stay within Windows path limits.
+    identifier = uuid4().hex if compact else f"{timestamp}-{uuid4().hex}"
+    run_id = f"{operation}-{identifier}"
     run_dir = Path(output_dir).resolve() / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     artifacts = RunArtifacts(run_id, run_dir)

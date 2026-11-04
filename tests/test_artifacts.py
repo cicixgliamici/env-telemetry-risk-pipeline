@@ -77,8 +77,9 @@ def test_training_runs_are_self_contained(tmp_path, monkeypatch):
         config = _read_json(run_dir / "config.json")
         assert config["random_state"] == metadata["random_state"]
         assert config["test_size"] == metadata["test_size"]
-        assert config["candidate_models"][metrics["selected_model"]]["classifier_params"] == (
-            metadata["selected_model_params"]
+        assert (
+            config["candidate_models"][metrics["selected_model"]]["classifier_params"]
+            == (metadata["selected_model_params"])
         )
         assert _read_json(run_dir / "run.json")["status"] == "completed"
 

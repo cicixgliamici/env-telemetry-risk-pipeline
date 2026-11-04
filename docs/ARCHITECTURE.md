@@ -10,7 +10,7 @@ The project is organized as a lightweight Python package with a simple CLI entry
 2. `src.data_loader` loads the raw CSV and delegates schema checks to `src.validation`, using the operation's purpose. Training requires a complete target; prediction, anomaly detection, and profiling require only telemetry. All paths reject invalid ranges, infinities, missing timestamps, and ambiguous normalized headers.
 3. For supervised training, `src.preprocessing` normalizes, deduplicates, and sorts rows without imputing missing inputs, then creates the train/test split.
 4. `src.modeling` builds candidate pipelines that impute inputs, add derived features, optionally scale, and classify. Cross-validation fits each pipeline on its fold's training observations only.
-5. `src.train` selects a candidate using training-only cross-validation, refits it on the full training split, and evaluates it on the held-out test split. The independent anomaly path retains its existing batch cleaning and feature engineering.
+5. `src.train` selects a candidate using training-only cross-validation. Optional cost-based threshold selection uses the same training folds before the winner is refitted and evaluated on the holdout. The independent anomaly path retains its existing batch cleaning and feature engineering.
 6. `src.evaluate`, `src.visualize`, and `src.utils` write metrics and artifacts.
 
 ## Module Responsibilities
@@ -27,6 +27,9 @@ The project is organized as a lightweight Python package with a simple CLI entry
 - `src/decision_evaluation.py`: decision artifacts and original-versus-selected held-out evaluation
 - `src/predict.py`: batch inference using the saved pipeline and its embedded input schema
 - `src/train.py`: supervised model comparison and artifact generation
+- `src/training_artifacts.py`: split data container, fitted-feature audit export, metadata, model persistence, and final reports
+- `src/synthetic_data.py`: packaged deterministic telemetry generator, also exposed by the helper script
+- `src/review.py`: reproducible runtime bundle and relative report links across all review experiments
 - `src/anomaly.py`: unsupervised anomaly detection pipeline
 - `src/robustness_reference.py`: frozen source model, original holdout membership, and consistency checks
 - `src/stress_scenarios.py`: predetermined measurement/case-mix scenarios with training-only scales

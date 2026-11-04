@@ -7,6 +7,7 @@ Use this checklist to evaluate the project quickly and consistently.
 ```bash
 pip install -e .[dev]
 python -m ruff check src tests scripts
+python -m ruff format --check src tests scripts
 python -m pytest -q
 python -m src validate --input data/raw/raw_dataset.csv
 python -m src profile --input data/raw/raw_dataset.csv
@@ -15,18 +16,27 @@ python -m src profile --input data/raw/raw_dataset.csv
 ## Full Local Flow
 
 ```bash
-python scripts/generate_synthetic_data.py --output data/raw/synthetic_dataset.csv --rows 250 --seed 42
-python -m src validate --input data/raw/synthetic_dataset.csv
-python -m src profile --input data/raw/synthetic_dataset.csv
-python -m src train --input data/raw/synthetic_dataset.csv
-python -m src predict --input data/raw/synthetic_dataset.csv --model "runs/<run_id>/models/<selected_model>_model.pkl"
-python -m src anomaly --input data/raw/synthetic_dataset.csv --contamination 0.05
+python -m src review --rows 1000 --seed 42 --repeats 5 --output-dir runs
 python -m build --no-isolation
 ```
 
-Replace prediction placeholders with the exact `model_artifact` path printed by training.
-Each training/anomaly invocation prints its `run_id` and absolute `run_dir`;
-`--output-dir` changes the parent directory without reusing an existing run.
+Open the `REVIEW_SUMMARY.md` path printed by the review command. Its relative links
+remain valid when sharing the entire directory. It includes random, temporal, and
+cost-policy training, robustness on the temporal classifier, batch scoring with the
+cost-policy model, profiling, and anomaly detection. Each child has its own lifecycle
+manifest, settings, environment, and outputs. Use `--rows 250 --repeats 1` for a faster
+smoke run. Small or unusual generated datasets can fail early temporal class checks;
+the command never silently switches evaluation protocol.
+
+The review seed controls generated data and stress draws; model and split seeds
+remain the recorded project constant (42). The command does not run tests or builds.
+
+## Suggested Reading Order
+
+1. [Review status](REVIEW_STATUS.md) and [roadmap](ROADMAP.md): completed scope and checks.
+2. [Dataset card](DATASET_CARD.md) and [model card](MODEL_CARD.md): task and limitations.
+3. Generated `REVIEW_SUMMARY.md`: measured evidence and links to the full reports.
+4. [Architecture](ARCHITECTURE.md), code, and tests: inspect the implementation behind the claims.
 
 ## What To Inspect
 

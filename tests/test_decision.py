@@ -89,7 +89,9 @@ def test_never_risk_policy_handles_probability_one_without_invalid_threshold(cos
     assert model.predict(features).tolist() == [0] * len(features)
     assert model.predict_proba(features)[:, 1].tolist() == [1] * len(features)
     weights = np.arange(len(target)) + 1
-    assert model.score(features, target, sample_weight=weights) == np.average(target == 0, weights=weights)
+    assert model.score(features, target, sample_weight=weights) == np.average(
+        target == 0, weights=weights
+    )
 
 
 @pytest.mark.parametrize("target", [[0, 2] * 6, [0, 1, 2] * 4])

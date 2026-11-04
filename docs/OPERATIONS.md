@@ -181,6 +181,24 @@ For supervised training, `cleaned_dataset.csv` retains missing telemetry values.
 
 `training_summary.md` compares five candidates on identical training folds, reports feature-ablation deltas and the dummy gap, and separates winner-only test metrics. `model_metadata.json` records the actual `feature_set`, normalized data fingerprint, class counts, and environment versions. The fingerprint identifies the table, not its original source. See `docs/EXPERIMENT_RESULTS.md` for a fixed synthetic reproduction protocol and observed results.
 
+## Reviewer Bundle
+
+```bash
+python -m src review --rows 1000 --seed 42 --repeats 5 --output-dir runs
+```
+
+The printed `REVIEW_SUMMARY.md` links the runtime evidence. Each invocation generates
+its own synthetic input and runs three supervised protocols, frozen temporal-model
+robustness, cost-model batch scoring, profiling, and anomaly detection. It never
+silently substitutes a random split if temporal history lacks sufficient classes.
+Use `--rows 250 --repeats 1` for a smaller smoke check.
+
+The review root omits a timestamp from its UUID-based directory name to reduce
+nested path lengths on Windows; timestamps remain in its manifest. Child run names
+retain their timestamp and UUID. Share the complete root folder for portable report
+links; JSON paths record original execution locations. Tests, builds, and container
+checks are separate from runtime evidence generation.
+
 ## Production Hardening Ideas
 
 - Add environment-based configuration for paths and model settings.

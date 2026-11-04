@@ -128,7 +128,11 @@ def build_parser() -> argparse.ArgumentParser:
     robustness_parser.add_argument(
         "--repeats", type=int, default=5, help="Repetitions per stochastic scenario (default: 5)"
     )
-    for run_parser in [train_parser, anomaly_parser, robustness_parser]:
+    review_parser = subparsers.add_parser("review", help="Reproduce the synthetic review bundle")
+    review_parser.add_argument("--rows", type=int, default=1000)
+    review_parser.add_argument("--seed", type=int, default=42)
+    review_parser.add_argument("--repeats", type=int, default=5)
+    for run_parser in [train_parser, anomaly_parser, robustness_parser, review_parser]:
         run_parser.add_argument(
             "--output-dir",
             default=str(RUNS_DIR),
@@ -144,6 +148,22 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        if args.command == "review":
+            from src.review import run_review
+
+            print(
+                json.dumps(
+                    run_review(
+                        rows=args.rows,
+                        seed=args.seed,
+                        repeats=args.repeats,
+                        output_dir=args.output_dir,
+                    ),
+                    indent=2,
+                )
+            )
+            return 0
+
         if args.command == "validate":
             df = load_csv(args.input, purpose=args.purpose)
             print(

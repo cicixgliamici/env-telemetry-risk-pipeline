@@ -36,6 +36,9 @@ jobs:
       - name: Lint
         run: python -m ruff check src tests scripts
 
+      - name: Check formatting
+        run: python -m ruff format --check src tests scripts
+
       - name: Smoke CLI validate
         run: python -m src validate --input data/raw/raw_dataset.csv
 
@@ -70,20 +73,12 @@ jobs:
       - name: Build package
         run: python -m build --no-isolation
 
-      - name: Generate synthetic review dataset
-        run: python scripts/generate_synthetic_data.py --output data/raw/synthetic_dataset.csv --rows 250 --seed 42
+      - name: Install built wheel
+        run: python -m pip install --force-reinstall --no-deps dist/*.whl
 
-      - name: Validate synthetic review dataset
-        run: python -m src validate --input data/raw/synthetic_dataset.csv
-
-      - name: Profile synthetic review dataset
-        run: python -m src profile --input data/raw/synthetic_dataset.csv
-
-      - name: Train synthetic review model
-        run: python -m src train --input data/raw/synthetic_dataset.csv
-
-      - name: Train with chronological evaluation
-        run: python -m src train --input data/raw/synthetic_dataset.csv --split-strategy temporal --temporal-gap 1
+      - name: Reproduce review evidence from installed package
+        working-directory: ${{ runner.temp }}
+        run: python -m src review --rows 250 --seed 42 --repeats 2 --output-dir "${{ github.workspace }}/runs"
 
       - name: Upload package artifacts
         uses: actions/upload-artifact@v4
@@ -91,10 +86,10 @@ jobs:
           name: python-package
           path: dist/*
 
-      - name: Upload synthetic training run
+      - name: Upload synthetic review runs
         uses: actions/upload-artifact@v4
         with:
-          name: synthetic-training-run
+          name: synthetic-review-runs
           path: runs/
           if-no-files-found: error
 

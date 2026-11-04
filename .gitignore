@@ -6,11 +6,18 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+test-results/
+*.log
 
 # Virtual environments
 .venv/
 venv/
 env/
+.venv-*/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -25,19 +32,32 @@ Thumbs.db
 build/
 dist/
 *.egg-info/
+.eggs/
 
 # Pipeline outputs
 runs/
-models/*.pkl
-data/processed/*.csv
-data/outputs/*.csv
-data/outputs/*.json
-data/outputs/*.md
+# These directories contain reproducible runtime artifacts, not source inputs.
+/models/*
+!/models/.gitkeep
+/data/processed/*
+!/data/processed/.gitkeep
+/data/outputs/*
+!/data/outputs/.gitkeep
 data/raw/synthetic_dataset.csv
-reports/figures/*.png
+/reports/figures/*
+!/reports/figures/.gitkeep
 
 # Temporary pytest folders seen on Windows
 pytest-cache-files-*/
 
 # Local planning notes
 LOCAL_ROADMAP.md
+
+# Local credentials and agent settings; keep documented examples publishable.
+.env
+.env.*
+!.env.example
+!.env.*.example
+/.aws/
+/.codex/
+/.agents/

@@ -95,15 +95,10 @@ python -m src validate --input data/raw/raw_dataset.csv
 python -m pytest -q
 ```
 
-For a fuller smoke run:
+Generate the complete synthetic evidence bundle with one command:
 
 ```bash
-python scripts/generate_synthetic_data.py --output data/raw/synthetic_dataset.csv --rows 250 --seed 42
-python -m src validate --input data/raw/synthetic_dataset.csv
-python -m src profile --input data/raw/synthetic_dataset.csv
-python -m src train --input data/raw/raw_dataset.csv
-python -m src predict --input data/raw/raw_dataset.csv --model "runs/<run_id>/models/<selected_model>_model.pkl"
-python -m src anomaly --input data/raw/raw_dataset.csv --contamination 0.05
+python -m src review --rows 1000 --seed 42 --repeats 5 --output-dir runs
 ```
 
 Expected high-level behavior:
@@ -116,8 +111,13 @@ Expected high-level behavior:
 - synthetic data generation creates a reproducible larger review dataset when the bundled sample is too small
 - generated runtime artifacts are ignored by git
 
-Replace the prediction example's placeholders with the `model_artifact` path printed
-by training. Training and anomaly detection print their `run_id` and absolute `run_dir`.
+Open `REVIEW_SUMMARY.md` at the path printed by `review`. It links the random,
+temporal, and cost-policy training reports, frozen-model stress evidence, profile,
+and batch predictions. Child runs include anomaly outputs and complete manifests.
+The bundle uses its own generated input and does not overwrite the bundled dataset.
+For a faster runtime smoke check, use `--rows 250 --repeats 1`.
+Runtime evidence does not replace the quality checks in the
+[Reviewer Checklist](docs/REVIEWER_CHECKLIST.md).
 
 ## CLI Usage
 
@@ -297,4 +297,8 @@ output options; their default outputs stay in `data/outputs/`.
 - experiments on sourced observational data with defensible risk labels
 - config via environment variables or YAML
 - hyperparameter search within training-only cross-validation
-- linting and formatting automation
+- probability calibration and external validation before operational use
+
+See the [completed roadmap and remaining work](docs/ROADMAP.md) for the six-stage
+review scope and the [review status](docs/REVIEW_STATUS.md) for verification evidence.
+Use the [publication checklist](docs/PUBLICATION_CHECKLIST.md) for the local-to-remote handoff.

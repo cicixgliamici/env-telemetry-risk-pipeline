@@ -19,3 +19,14 @@ runs/
 reports/figures/*.png
 notebooks/
 pytest-cache-files-*/
+
+# Local credentials and review tooling are not part of the runtime image.
+.env
+.env.*
+.aws/
+.codex/
+.agents/
+LOCAL_ROADMAP.md
+*.log
+htmlcov/
+.coverage*

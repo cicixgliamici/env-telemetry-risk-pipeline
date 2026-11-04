@@ -30,16 +30,31 @@ def plot_feature_importance(model, feature_names, output_path: str | Path) -> No
     plt.close()
 
 
-def plot_confusion_matrix(cm, output_path: str | Path) -> None:
-    plt.figure(figsize=(5, 4))
-    plt.imshow(cm, interpolation="nearest")
-    plt.title("Confusion Matrix")
-    plt.xlabel("Predicted")
-    plt.ylabel("True")
-    plt.colorbar()
-    plt.tight_layout()
-    plt.savefig(output_path)
-    plt.close()
+def plot_confusion_matrix(cm, output_path: str | Path, labels=None) -> None:
+    """Show actual class labels, including when the holdout contains only one class."""
+
+    labels = list(range(len(cm))) if labels is None else labels
+    figure, axis = plt.subplots(figsize=(5, 4))
+    image = axis.imshow(cm, interpolation="nearest", cmap="Blues")
+    axis.set(title="Confusion Matrix", xlabel="Predicted", ylabel="True")
+    axis.set_xticks(range(len(labels)), labels)
+    axis.set_yticks(range(len(labels)), labels)
+    # Counts keep exported figures readable without consulting a separate JSON file.
+    midpoint = max(max(row) for row in cm) / 2
+    for row, counts in enumerate(cm):
+        for column, count in enumerate(counts):
+            axis.text(
+                column,
+                row,
+                str(count),
+                ha="center",
+                va="center",
+                color="white" if count > midpoint else "black",
+            )
+    figure.colorbar(image, ax=axis)
+    figure.tight_layout()
+    figure.savefig(output_path)
+    plt.close(figure)
 
 
 def plot_anomaly_scatter(df: pd.DataFrame, output_path: str | Path) -> None:
