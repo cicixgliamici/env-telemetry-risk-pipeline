@@ -16,6 +16,13 @@ Small ML pipeline for environmental telemetry data with a clearer structure, dat
 
 Model selection uses mean weighted F1 from cross-validation on the training split only. The default protocol uses random stratified holdout and stratified folds; `--split-strategy temporal` uses the latest timestamps as holdout and expanding historical training folds. The selected model is fitted on the full training split, then evaluated once on the held-out test split. `model_comparison.json` contains candidate cross-validation means and standard deviations; final test metrics belong only to the winner. Stratified CV requires at least two observations per training class; temporal CV requires at least two classes in every historical training window.
 
+By default, predictions retain the classifier's original decision rule. Optional
+`--decision-policy cost` selects a binary risk threshold using only training-fold
+validation probabilities and user-supplied false-negative/false-positive cost weights.
+The saved pipeline applies that rule in training evaluation, batch prediction, and
+robustness experiments. See [Decision Policy](docs/DECISION_POLICY.md) for the objective,
+measured tradeoffs, and limits of the illustrative cost ratio.
+
 Each supervised model is saved as a complete scikit-learn `Pipeline`: median imputation, feature engineering, optional standard scaling for logistic regression, and classification. Imputation and scaling are fitted separately inside each training fold and frozen during prediction. The fitted artifact contains its raw feature schema, so new pipeline predictions do not require `model_metadata.json`.
 
 Training compares five configurations on identical folds: both classifier families with raw or engineered features, plus a majority-class `DummyClassifier`. Reports include weighted and macro F1, class-1 risk recall, feature-ablation deltas, and the selected model's improvement over the dummy. A [reproducible 1,000-row synthetic experiment](docs/EXPERIMENT_RESULTS.md) records the measured results and their limits.
@@ -149,6 +156,18 @@ has insufficient class diversity in early history for this protocol. See
 [Temporal Evaluation](docs/TEMPORAL_EVALUATION.md) for boundaries, recorded evidence,
 and limitations. Synthetic results remain implementation checks.
 
+Choose a risk cutoff with illustrative relative error costs of 5 for a missed risk
+and 1 for a false alert:
+
+```bash
+python -m src train --input data/raw/synthetic_dataset.csv --split-strategy temporal --temporal-gap 1 --decision-policy cost --false-negative-cost 5 --false-positive-cost 1
+```
+
+The classifier family is still selected by mean CV weighted F1. The subsequent
+cutoff minimizes pooled validation error cost for that winner. The final report
+compares its original rule and the chosen rule on the same held-out cases;
+test scores do not choose the cutoff. These relative costs are examples, not domain estimates.
+
 Create a data profile:
 
 ```bash
@@ -216,6 +235,7 @@ docker run --rm env-telemetry-risk-pipeline:local
 - [Experiment Results](docs/EXPERIMENT_RESULTS.md): fixed protocol, dummy baseline, feature ablation, results, and reproduction identity
 - [Temporal Evaluation](docs/TEMPORAL_EVALUATION.md): chronological holdout, expanding folds, timestamp groups, and exclusion gaps
 - [Robustness Results](docs/ROBUSTNESS_RESULTS.md): fixed stress protocol, measured deltas, reproduction, and interpretation
+- [Decision Policy](docs/DECISION_POLICY.md): training-only cutoff selection, error costs, precision/recall, and persisted inference behavior
 
 ## Review Notes
 
@@ -246,6 +266,11 @@ Inside each training run:
 - `outputs/predictions.csv` and `outputs/training_summary.md`
 - `models/<selected_model>_model.pkl`
 - `figures/confusion_matrix.png` and, for tree models, `figures/feature_importance.png`
+
+Cost-policy training also saves `outputs/decision_policy.json`,
+`outputs/threshold_comparison.csv`, `outputs/threshold_validation_predictions.csv`,
+and `figures/threshold_selection.png`. The policy is embedded in the model artifact;
+prediction does not require those sidecars or a manually supplied threshold.
 
 Inside each anomaly run:
 

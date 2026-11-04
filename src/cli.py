@@ -50,6 +50,25 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         help="Timestamp groups excluded before temporal test and CV validation windows",
     )
+    train_parser.add_argument(
+        "--decision-policy",
+        choices=["classifier", "cost"],
+        default="classifier",
+        help="Keep classifier decisions or choose a binary risk cutoff "
+        "using training-only error cost",
+    )
+    train_parser.add_argument(
+        "--false-negative-cost",
+        type=float,
+        default=5.0,
+        help="Relative cost of a missed risk case (illustrative default: 5)",
+    )
+    train_parser.add_argument(
+        "--false-positive-cost",
+        type=float,
+        default=1.0,
+        help="Relative cost of a false risk alert (illustrative default: 1)",
+    )
 
     profile_parser = subparsers.add_parser("profile", help="Create a data quality profile")
     profile_parser.add_argument(
@@ -149,6 +168,9 @@ def main(argv: list[str] | None = None) -> int:
                 split_strategy=args.split_strategy,
                 test_size=args.test_size,
                 temporal_gap=args.temporal_gap,
+                decision_policy=args.decision_policy,
+                false_negative_cost=args.false_negative_cost,
+                false_positive_cost=args.false_positive_cost,
             )
             print(json.dumps(metrics, indent=2))
             return 0

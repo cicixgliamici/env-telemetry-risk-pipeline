@@ -35,6 +35,7 @@ Each training/anomaly invocation prints its `run_id` and absolute `run_dir`;
 - `docs/DATASET_CARD.md`: schema, synthetic data, and leakage notes.
 - `docs/EXPERIMENT_RESULTS.md`: reproducible 1,000-row benchmark, baseline, ablation, and limits.
 - `docs/ROBUSTNESS_RESULTS.md`: frozen-model stress protocol, measured synthetic deltas, and uncertainty limits.
+- `docs/DECISION_POLICY.md`: validation-only risk cutoffs, relative error costs, and precision/recall tradeoffs.
 - `runs/<run_id>/outputs/training_summary.md`: CV table, raw/engineered deltas, dummy gap, and winner-only test metrics.
 - `.github/workflows/ci.yml`: test matrix, package build, synthetic data validation, and container smoke test.
 - `runs/<run_id>/outputs/model_metadata.json`: selected model, feature columns, excluded columns, and run identity.
@@ -53,6 +54,7 @@ Each training/anomaly invocation prints its `run_id` and absolute `run_dir`;
 - Batch prediction uses the fitted pipeline's own feature order.
 - Temporal evaluation keeps whole timestamp groups together and trains each fold strictly before its validation window.
 - Robustness experiments preserve source models/labels and distinguish sensor errors from changed case mix.
+- Cost-based cutoffs use only training-validation probabilities and travel with the saved pipeline.
 - Synthetic data is deterministic and tested.
 - Docker runs as a non-root user.
 - CI checks lint, tests, package build, synthetic data, and container smoke.

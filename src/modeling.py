@@ -9,6 +9,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
 from src.config import RANDOM_STATE
+from src.decision import RiskDecisionPipeline
 from src.feature_engineering import add_engineered_features
 
 
@@ -26,7 +27,7 @@ def build_classifier_pipeline(
         FunctionTransformer(add_engineered_features) if engineer_features else "passthrough"
     )
     scaler = StandardScaler().set_output(transform="pandas") if scale_features else "passthrough"
-    return Pipeline(
+    return RiskDecisionPipeline(
         [
             ("imputer", imputer),
             ("feature_engineering", feature_engineering),

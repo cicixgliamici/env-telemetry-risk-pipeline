@@ -23,6 +23,8 @@ The project is organized as a lightweight Python package with a simple CLI entry
 - `src/splitting.py`: stratified or temporal partitions, expanding windows, and auditable evaluation membership
 - `src/feature_engineering.py`: derived telemetry features
 - `src/modeling.py`: supervised pipelines with fitted imputation and optional standard scaling
+- `src/decision.py`: optional persisted binary decision cutoff and training-validation cost selection
+- `src/decision_evaluation.py`: decision artifacts and original-versus-selected held-out evaluation
 - `src/predict.py`: batch inference using the saved pipeline and its embedded input schema
 - `src/train.py`: supervised model comparison and artifact generation
 - `src/anomaly.py`: unsupervised anomaly detection pipeline

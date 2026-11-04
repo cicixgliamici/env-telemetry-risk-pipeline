@@ -88,3 +88,33 @@ def plot_robustness_scores(scenarios: dict, output_path: str | Path) -> None:
     figure.tight_layout()
     figure.savefig(output_path)
     plt.close(figure)
+
+
+def plot_threshold_selection(curve: pd.DataFrame, policy: dict, output_path: str | Path) -> None:
+    """Plot only training-validation evidence, keeping test scores out of threshold selection."""
+
+    finite = curve.dropna(subset=["threshold"])
+    figure, axes = plt.subplots(2, 1, figsize=(8, 7), sharex=True)
+    axes[0].plot(finite["threshold"], finite["precision_risk"], label="Risk precision")
+    axes[0].plot(finite["threshold"], finite["recall_risk"], label="Risk recall")
+    axes[0].set_ylabel("Training-validation metric")
+    axes[0].set_ylim(0, 1.05)
+    axes[0].legend()
+    axes[1].plot(finite["threshold"], finite["cost_per_observation"], label="Relative error cost")
+    # Never-risk differs from threshold 1 when some scores equal exactly 1.
+    never_risk = curve[curve["rule"] == "never_risk"].iloc[0]
+    axes[1].scatter([1.1], [never_risk["cost_per_observation"]], marker="x", color="black")
+    axes[1].set_ylabel("Cost per validation observation")
+    axes[1].set_xlabel("Risk probability threshold (inclusive)")
+    for axis in axes:
+        axis.grid(alpha=0.25)
+        cutoff = policy["threshold"] if policy["threshold"] is not None else 1.1
+        axis.axvline(cutoff, color="black", linestyle="--", label="Selected cutoff")
+    axes[1].set_xticks(
+        [0, 0.2, 0.4, 0.6, 0.8, 1, 1.1], ["0", "0.2", "0.4", "0.6", "0.8", "1", "never\nrisk"]
+    )
+    rule = "never risk" if policy["threshold"] is None else f"threshold {policy['threshold']:.2f}"
+    figure.suptitle(f"Training-Only Decision Selection: {rule}")
+    figure.tight_layout()
+    figure.savefig(output_path)
+    plt.close(figure)

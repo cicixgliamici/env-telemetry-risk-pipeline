@@ -56,6 +56,18 @@ Run anomaly detection:
 python -m src anomaly --input data/raw/raw_dataset.csv --contamination 0.05
 ```
 
+Train a binary model with a validation-selected risk cutoff:
+
+```powershell
+python -m src train --input data/raw/synthetic_dataset.csv --split-strategy temporal --temporal-gap 1 --decision-policy cost --false-negative-cost 5 --false-positive-cost 1 --output-dir runs
+```
+
+The cost ratio is illustrative and configurable. Threshold selection uses only the
+training period's validation probabilities. The selected rule is embedded in the
+model; use the normal `predict` and `robustness` commands afterward. Existing default
+classifier decisions remain available by omitting `--decision-policy cost`. See
+[Decision Policy](DECISION_POLICY.md) for the grid, error counts, and measured tradeoff.
+
 Run tests:
 
 ```powershell
@@ -130,6 +142,7 @@ the absolute `run_dir` returned by the command:
 - `<run>/outputs/metrics.json` (training)
 - `<run>/outputs/model_comparison.json` (training)
 - `<run>/outputs/model_metadata.json` (training)
+- `<run>/outputs/decision_policy.json`, `threshold_comparison.csv`, and `threshold_validation_predictions.csv` (cost-policy training)
 - `<run>/outputs/evaluation_protocol.json`: exact holdout/CV membership and temporal boundaries
 - `<run>/outputs/predictions.csv` (training)
 - `<run>/outputs/training_summary.md` (training)

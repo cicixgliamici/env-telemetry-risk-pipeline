@@ -16,6 +16,8 @@ from src.config import (
     TEST_SIZE,
 )
 from src.data_loader import load_csv
+from src.decision import validate_decision_settings
+from src.decision_evaluation import configure_decision_policy, evaluate_model_decision
 from src.evaluate import evaluate_predictions
 from src.experiment import build_data_evidence, build_feature_ablation, format_training_summary
 from src.modeling import build_model_candidates
@@ -103,10 +105,14 @@ def run_training(
     split_strategy: str = "stratified_random",
     test_size: float = TEST_SIZE,
     temporal_gap: int = 0,
+    decision_policy: str = "classifier",
+    false_negative_cost: float = 5.0,
+    false_positive_cost: float = 1.0,
 ) -> dict:
     """Run the end-to-end supervised training pipeline and save artifacts."""
 
     validate_split_settings(split_strategy, test_size, temporal_gap)
+    validate_decision_settings(decision_policy, false_negative_cost, false_positive_cost)
     candidates = build_model_candidates()
     config = {
         "raw_data_path": str(Path(raw_data_path).resolve()),
@@ -118,6 +124,9 @@ def run_training(
         "split_strategy": split_strategy,
         "temporal_gap": temporal_gap,
         "max_cv_folds": 3,
+        "decision_policy": decision_policy,
+        "false_negative_cost": false_negative_cost,
+        "false_positive_cost": false_positive_cost,
         "candidate_models": {
             name: {
                 "classifier": type(model.named_steps["classifier"]).__name__,
@@ -179,14 +188,23 @@ def _run_training(raw_data_path, artifacts: RunArtifacts, candidates: dict, conf
         key=lambda name: cross_validation[name]["f1_weighted_mean"],
     )
     model = candidates[best_model_name]
+    policy = configure_decision_policy(model, X_train, y_train, cv_splits, config, artifacts)
     LOGGER.info("Fitting selected model on the full training split: %s", best_model_name)
     model.fit(X_train, y_train)
     model_feature_columns = _save_featured_dataset(
         model, cleaned, artifacts.processed / "featured_dataset.csv"
     )
     # Reuse these final predictions for metrics and CSV output to evaluate only once.
-    test_predictions = model.predict(X_test)
-    metrics = evaluate_predictions(y_test, test_predictions)
+    if policy["mode"] == "classifier":
+        test_predictions = model.predict(X_test)
+        metrics = evaluate_predictions(y_test, test_predictions)
+        decision_diagnostics = {}
+    else:
+        test_predictions, metrics, decision_diagnostics = evaluate_model_decision(
+            model, X_test, y_test, policy
+        )
+    metrics["decision_policy"] = policy
+    metrics.update(decision_diagnostics)
     metrics["selected_model"] = best_model_name
     metrics["selection_metric"] = "f1_weighted_mean"
     metrics["selection_dataset"] = "training_cross_validation"
@@ -236,7 +254,11 @@ def _run_training(raw_data_path, artifacts: RunArtifacts, candidates: dict, conf
         "feature_columns": list(X_train.columns),
         "candidate_models": sorted(candidates.keys()),
         "selected_model_params": model.named_steps["classifier"].get_params(),
-        "artifact_format": "telemetry_pipeline_v1",
+        "artifact_format": (
+            "telemetry_pipeline_v2_threshold"
+            if policy["mode"] == "cost"
+            else "telemetry_pipeline_v1"
+        ),
         "engineered_feature_columns": model_feature_columns,
         "feature_set": (
             "raw" if model.named_steps["feature_engineering"] == "passthrough" else "engineered"
@@ -253,6 +275,7 @@ def _run_training(raw_data_path, artifacts: RunArtifacts, candidates: dict, conf
         "test_rows": int(len(X_test)),
         "cross_validation": cross_validation,
         "risk_label": RISK_LABEL,
+        "decision_policy": policy,
         "data_evidence": build_data_evidence(cleaned),
     }
     save_json(model_metadata, artifacts.outputs / "model_metadata.json")

@@ -7,6 +7,7 @@ from importlib.metadata import version
 import pandas as pd
 
 from src.config import RISK_LABEL, TARGET_COLUMN
+from src.decision_evaluation import decision_summary_lines
 
 
 def build_data_evidence(dataset: pd.DataFrame) -> dict:
@@ -64,10 +65,13 @@ def _comparison_lines(comparison: dict) -> list[str]:
             f"+/- {_score(values['f1_weighted_std'])} | {_score(values.get('f1_macro_mean'))} "
             f"| {_score(values.get('recall_risk_mean'))} |"
         )
-    lines.extend([
-        "", "Risk recall excludes validation folds without class 1; observed fold counts "
-        "are recorded in model_comparison.json. Fold variation is not a confidence interval.",
-    ])
+    lines.extend(
+        [
+            "",
+            "Risk recall excludes validation folds without class 1; observed fold counts "
+            "are recorded in model_comparison.json. Fold variation is not a confidence interval.",
+        ]
+    )
     return lines
 
 
@@ -144,6 +148,8 @@ def format_training_summary(metrics: dict, metadata: dict, protocol: dict) -> st
         f"- Selected CV weighted F1 minus dummy: {_score(metrics['dummy_f1_weighted_gap'])}",
         "",
         *_protocol_lines(protocol),
+        "",
+        *decision_summary_lines(metrics),
         "",
         *_comparison_lines(metrics["cross_validation"]),
         "",

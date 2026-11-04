@@ -16,6 +16,16 @@ Stratified cross-validation uses up to three identical folds for all candidates,
 
 ## Intended Use
 
+Optional cost-based decisions select a cutoff for the already chosen binary model
+using only training-fold validation probabilities. Relative FN/FP weights are supplied
+by the user and default to illustrative values 5:1 when cost selection is requested.
+The saved pipeline applies the rule consistently during inference and robustness
+evaluation. Candidate model CV scores retain original classifier decisions; headline
+test metrics use the selected rule. The report shows the original-versus-selected
+held-out tradeoff. See [Decision Policy](DECISION_POLICY.md) for the objective, artifacts,
+binary class requirements, measured example, and limitations. Probabilities remain
+uncalibrated.
+
 The model is intended as a reviewable baseline for environmental telemetry risk classification. It is suitable for:
 
 - demonstrating ML pipeline structure
