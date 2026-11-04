@@ -67,3 +67,24 @@ def plot_anomaly_scatter(df: pd.DataFrame, output_path: str | Path) -> None:
     plt.tight_layout()
     plt.savefig(output_path)
     plt.close()
+
+
+def plot_robustness_scores(scenarios: dict, output_path: str | Path) -> None:
+    """Show frozen-model F1 sensitivity with descriptive repetition standard deviations."""
+
+    completed = {
+        name: result for name, result in scenarios.items() if result["status"] == "completed"
+    }
+    means = [result["metrics"]["f1_weighted"]["mean"] for result in completed.values()]
+    deviations = [result["metrics"]["f1_weighted"]["std"] for result in completed.values()]
+    figure, axis = plt.subplots(figsize=(10, 5))
+    axis.errorbar(means, range(len(completed)), xerr=deviations, fmt="o", capsize=4)
+    axis.set_yticks(range(len(completed)), list(completed))
+    axis.invert_yaxis()
+    axis.set_xlim(0, 1)
+    axis.set_xlabel("Weighted F1 (mean +/- repetition std; not a confidence interval)")
+    axis.set_title("Frozen Model: Measurement Stress and Case-Mix Sensitivity")
+    axis.grid(axis="x", alpha=0.25)
+    figure.tight_layout()
+    figure.savefig(output_path)
+    plt.close(figure)

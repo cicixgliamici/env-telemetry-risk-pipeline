@@ -26,6 +26,9 @@ The project is organized as a lightweight Python package with a simple CLI entry
 - `src/predict.py`: batch inference using the saved pipeline and its embedded input schema
 - `src/train.py`: supervised model comparison and artifact generation
 - `src/anomaly.py`: unsupervised anomaly detection pipeline
+- `src/robustness_reference.py`: frozen source model, original holdout membership, and consistency checks
+- `src/stress_scenarios.py`: predetermined measurement/case-mix scenarios with training-only scales
+- `src/robustness.py`: repeated stress evaluation, metric deltas, row audit, and reviewer report
 - `src/evaluate.py`: model metrics and comparable summaries
 - `src/experiment.py`: data fingerprint and versions, paired feature deltas, and reviewer-facing training report
 - `src/visualize.py`: chart generation

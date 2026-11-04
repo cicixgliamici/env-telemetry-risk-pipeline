@@ -62,6 +62,18 @@ Run tests:
 python -m pytest
 ```
 
+Run frozen-model robustness experiments after training:
+
+```powershell
+python -m src robustness --training-run "runs/<training_run_id>" --seed 42 --repeats 5 --output-dir runs
+```
+
+Use the completed training command's `run_dir`. The experiment reuses its recorded
+holdout and frozen pipeline; it never fits a new model. `--seed` controls deterministic
+perturbation/resampling streams; `--repeats` must be positive and applies only to
+stochastic scenarios. See [Robustness Results](ROBUSTNESS_RESULTS.md) for the fixed
+scenario definitions, measured synthetic benchmark, output schema, and limitations.
+
 Create a data quality profile:
 
 ```powershell
@@ -125,6 +137,12 @@ the absolute `run_dir` returned by the command:
 - `<run>/outputs/anomaly_summary.json` (anomaly)
 - `<run>/models/*.pkl`
 - `<run>/figures/*.png`
+
+Robustness runs add their own `outputs/robustness_summary.json`, Markdown summary,
+per-repetition JSON, exact scored-input/prediction CSV, training-only stress profile,
+and `figures/robustness_f1.png`. Their configuration records the source artifact
+hashes, seed, repetition count, and predetermined scenario settings. The source
+training run remains unchanged; keep it with the robustness run for reproduction.
 
 Standalone commands retain these defaults, configurable via `profile --output-dir`
 and `predict --output`:

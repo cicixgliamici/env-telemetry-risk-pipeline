@@ -11,6 +11,7 @@ Small ML pipeline for environmental telemetry data with a clearer structure, dat
 - profiles data quality and target balance
 - runs batch predictions from a saved model
 - runs anomaly detection with `IsolationForest`
+- stress-tests a frozen model with missing values, sensor noise/bias, and case-mix changes
 - saves metrics, predictions, artifacts, and plots
 
 Model selection uses mean weighted F1 from cross-validation on the training split only. The default protocol uses random stratified holdout and stratified folds; `--split-strategy temporal` uses the latest timestamps as holdout and expanding historical training folds. The selected model is fitted on the full training split, then evaluated once on the held-out test split. `model_comparison.json` contains candidate cross-validation means and standard deviations; final test metrics belong only to the winner. Stratified CV requires at least two observations per training class; temporal CV requires at least two classes in every historical training window.
@@ -171,6 +172,20 @@ Run anomaly detection:
 python -m src anomaly --input data/raw/raw_dataset.csv --contamination 0.05
 ```
 
+Evaluate the selected model's robustness using a completed training run:
+
+```bash
+python -m src robustness --training-run "runs/<training_run_id>" --seed 42 --repeats 5
+```
+
+Use the `run_dir` printed by training. This command recovers the exact held-out
+rows, verifies their saved baseline predictions, and runs predetermined scenarios
+without retraining. Missingness, noise, and bias retain each case's label;
+the high-pollution scenario resamples unchanged measurements and labels together.
+An experiment on 1,000 synthetic observations measures the effects in
+[Robustness Results](docs/ROBUSTNESS_RESULTS.md), including cases where a stress
+improves a metric by chance. These results do not establish field performance.
+
 Run the tests:
 
 ```bash
@@ -200,6 +215,7 @@ docker run --rm env-telemetry-risk-pipeline:local
 - [Reviewer Checklist](docs/REVIEWER_CHECKLIST.md): commands and review signals to inspect
 - [Experiment Results](docs/EXPERIMENT_RESULTS.md): fixed protocol, dummy baseline, feature ablation, results, and reproduction identity
 - [Temporal Evaluation](docs/TEMPORAL_EVALUATION.md): chronological holdout, expanding folds, timestamp groups, and exclusion gaps
+- [Robustness Results](docs/ROBUSTNESS_RESULTS.md): fixed stress protocol, measured deltas, reproduction, and interpretation
 
 ## Review Notes
 
@@ -207,7 +223,7 @@ This is intentionally a small, auditable baseline rather than a highly tuned mod
 
 ## Generated Outputs
 
-Training and anomaly detection each create a unique folder under `runs/` relative
+Training, anomaly detection, and robustness experiments create unique folders under `runs/` relative
 to the working directory. Use `--output-dir` to change the parent directory:
 
 ```bash
@@ -236,6 +252,14 @@ Inside each anomaly run:
 - `outputs/anomalies.csv` and `outputs/anomaly_summary.json`
 - `models/anomaly_detector.pkl`
 - `figures/anomaly_scatter.png`
+
+Inside each robustness run:
+
+- `outputs/robustness_summary.json` and `outputs/robustness_summary.md`
+- `outputs/robustness_repetitions.json`: metrics for each scenario/repetition
+- `outputs/robustness_predictions.csv`: exact scored inputs, labels, predictions, and source row IDs
+- `outputs/stress_profile.json`: training-only perturbation scales and sampling threshold
+- `figures/robustness_f1.png`
 
 Runs never reuse an existing directory. Failed runs retain partial artifacts with
 status `failed`; interrupted processes may leave status `running`. Existing artifacts

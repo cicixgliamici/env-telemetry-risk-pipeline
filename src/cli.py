@@ -1,7 +1,7 @@
 import argparse
 import json
 
-from src.config import RAW_DATA_PATH, RUNS_DIR, TEST_SIZE
+from src.config import RANDOM_STATE, RAW_DATA_PATH, RUNS_DIR, TEST_SIZE
 from src.data_loader import load_csv
 from src.splitting import SPLIT_STRATEGIES
 from src.validation import DataValidationError, ValidationPurpose
@@ -97,7 +97,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.03,
         help="Expected contamination ratio for IsolationForest",
     )
-    for run_parser in [train_parser, anomaly_parser]:
+    robustness_parser = subparsers.add_parser(
+        "robustness", help="Stress-test a frozen model on its recorded held-out observations"
+    )
+    robustness_parser.add_argument(
+        "--training-run", required=True, help="Directory of a completed supervised training run"
+    )
+    robustness_parser.add_argument(
+        "--seed", type=int, default=RANDOM_STATE, help="Perturbation/resampling seed"
+    )
+    robustness_parser.add_argument(
+        "--repeats", type=int, default=5, help="Repetitions per stochastic scenario (default: 5)"
+    )
+    for run_parser in [train_parser, anomaly_parser, robustness_parser]:
         run_parser.add_argument(
             "--output-dir",
             default=str(RUNS_DIR),
@@ -178,6 +190,15 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "robustness":
+            from src.robustness import run_robustness
+
+            result = run_robustness(
+                args.training_run, output_dir=args.output_dir, seed=args.seed, repeats=args.repeats
+            )
+            print(json.dumps(result, indent=2))
+            return 0
+
         if args.command == "anomaly":
             from src.anomaly import detect_anomalies
 
@@ -197,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
             return 0
-    except (DataValidationError, ValueError) as exc:
+    except (DataValidationError, ValueError, OSError) as exc:
         print(json.dumps({"status": "error", "message": str(exc)}, indent=2))
         return 1
 

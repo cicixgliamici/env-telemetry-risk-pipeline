@@ -106,6 +106,13 @@ The synthetic dataset is useful for testing and demonstrations, but it does not 
 
 ## Limitations
 
+The optional `robustness` command evaluates the frozen selected model on predetermined
+missingness, noise, sensor-bias, and case-mix scenarios using its original held-out
+rows. It records full inputs/predictions, baseline-relative deltas, and repetition
+variation without retraining. See [Robustness Results](ROBUSTNESS_RESULTS.md) for
+measured synthetic evidence and the distinction between sensor degradation and
+composition changes. These stresses do not establish field reliability.
+
 - The bundled raw dataset is very small.
 - Feature thresholds are heuristic.
 - The model is not calibrated for operational probability decisions.
